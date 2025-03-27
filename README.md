@@ -1,2 +1,3 @@
 # Tipy
-Music recommendation app for Djs and public
+Pagina de recomendacion de musica. 
+Proyecto desarrollado en el CIE de la Universidad ORT Uruguay
