@@ -61,7 +61,8 @@
     "@supabase/supabase-js": "latest",
     "@supabase/auth-helpers-nextjs": "latest",
     "mercadopago": "latest",
-    "nanoid": "latest"
+    "nanoid": "latest",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@types/node": "^22",
