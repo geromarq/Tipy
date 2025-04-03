@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import type { Database } from "@/lib/database.types"
 import { cache } from "react"
 
+// Usar cache() de React para asegurar que solo se crea una instancia
 export const createServerSupabaseClient = cache(() => {
   const cookieStore = cookies()
   return createServerComponentClient<Database>({ cookies: () => cookieStore })

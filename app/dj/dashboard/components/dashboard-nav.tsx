@@ -65,8 +65,8 @@ export function DashboardNav() {
 
   return (
     <div className="flex flex-col h-full space-y-4 py-4">
-      <div className="px-3 py-2">
-        <Logo />
+      <div className="px-3 py-2 flex items-center">
+        <Logo size="sm" withText={true} />
       </div>
       <div className="px-3 py-2">
         <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">Panel de DJ</h2>

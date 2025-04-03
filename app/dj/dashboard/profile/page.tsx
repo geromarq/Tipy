@@ -24,6 +24,8 @@ export default function ProfilePage() {
     confirmPassword: "",
   })
 
+  const MIN_TIP_AMOUNT = 10 // Mínimo de 10 pesos
+
   useEffect(() => {
     if (!session) return
 
@@ -53,7 +55,7 @@ export default function ProfilePage() {
             ...formData,
             displayName: data.display_name || "",
             username: data.username || "",
-            minTipAmount: data.min_tip_amount?.toString() || "100",
+            minTipAmount: data.min_tip_amount?.toString() || MIN_TIP_AMOUNT.toString(),
           })
           return
         }
@@ -103,7 +105,7 @@ export default function ProfilePage() {
             ...formData,
             displayName: updatedProfile.display_name || "",
             username: updatedProfile.username || "",
-            minTipAmount: updatedProfile.min_tip_amount?.toString() || "100",
+            minTipAmount: updatedProfile.min_tip_amount?.toString() || MIN_TIP_AMOUNT.toString(),
           })
           return
         }
@@ -123,7 +125,7 @@ export default function ProfilePage() {
             email: session.user.email || "",
             username: uniqueUsername,
             display_name: session.user.email?.split("@")[0] || "Usuario",
-            min_tip_amount: 100,
+            min_tip_amount: MIN_TIP_AMOUNT,
             password_hash: `auto_generated_${timestamp}`,
           })
           .select()
@@ -146,7 +148,7 @@ export default function ProfilePage() {
           ...formData,
           displayName: newProfile.display_name || "",
           username: newProfile.username || "",
-          minTipAmount: newProfile.min_tip_amount?.toString() || "100",
+          minTipAmount: newProfile.min_tip_amount?.toString() || MIN_TIP_AMOUNT.toString(),
         })
       } catch (err) {
         console.error("Error al cargar el perfil:", err)
@@ -188,8 +190,8 @@ export default function ProfilePage() {
       }
 
       const minTipAmount = Number.parseFloat(formData.minTipAmount)
-      if (isNaN(minTipAmount) || minTipAmount < 0) {
-        throw new Error("La propina mínima debe ser un número válido mayor o igual a 0")
+      if (isNaN(minTipAmount) || minTipAmount < MIN_TIP_AMOUNT) {
+        throw new Error(`La propina mínima debe ser un número válido mayor o igual a ${MIN_TIP_AMOUNT}`)
       }
 
       // Verificar si el nombre de usuario ya existe (si ha cambiado)
@@ -371,15 +373,16 @@ export default function ProfilePage() {
                     id="minTipAmount"
                     name="minTipAmount"
                     type="number"
-                    min="0"
-                    step="50"
+                    min={MIN_TIP_AMOUNT}
                     className="pl-7"
                     value={formData.minTipAmount}
                     onChange={handleChange}
                     required
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">Esta es la propina mínima que los clientes deben pagar</p>
+                <p className="text-xs text-muted-foreground">
+                  Esta es la propina mínima que los clientes deben pagar (mínimo ${MIN_TIP_AMOUNT})
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Correo electrónico</Label>

@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { customAlphabet } from "nanoid"
+import { v4 as uuidv4 } from "uuid"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -13,11 +14,16 @@ export function generateQrCode() {
   return nanoid()
 }
 
-// Format currency in ARS
+// Generate a UUID compatible with Supabase
+export function generateUUID() {
+  return uuidv4()
+}
+
+// Format currency in UYU (Uruguayan Peso)
 export function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("es-AR", {
+  return new Intl.NumberFormat("es-UY", {
     style: "currency",
-    currency: "ARS",
+    currency: "UYU",
   }).format(amount)
 }
 

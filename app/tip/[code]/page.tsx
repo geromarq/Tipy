@@ -13,9 +13,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, generateUUID } from "@/lib/utils"
 import { Music, LinkIcon, Star } from "lucide-react"
-import { nanoid } from "nanoid"
 
 export default function TipPage() {
   const params = useParams()
@@ -33,6 +32,7 @@ export default function TipPage() {
     message: "",
     spotifyLink: "",
   })
+  const [debugInfo, setDebugInfo] = useState<string | null>(null)
 
   useEffect(() => {
     fetchQrDetails()
@@ -82,47 +82,71 @@ export default function TipPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
+    setDebugInfo(null)
 
     try {
-      // Generate a unique ID for the client
-      const clientId = nanoid()
+      // Generate a UUID for the client
+      const clientId = generateUUID()
 
-      // Create client
-      const { error: clientError } = await supabase.from("clients").insert({
+      // Prepare client data
+      const clientData = {
         id: clientId,
-        name: formData.name,
-        phone: formData.phone,
-      })
-
-      if (clientError) {
-        throw clientError
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        created_at: new Date().toISOString(),
       }
 
+      // Log the data being sent for debugging
+      console.log("Sending client data:", clientData)
+
+      // Create client - using insert directly without select=*
+      const { error: clientError, data: clientResponse } = await supabase.from("clients").insert(clientData).select()
+
+      if (clientError) {
+        console.error("Client insertion error:", clientError)
+        setDebugInfo(
+          JSON.stringify(
+            {
+              error: clientError,
+              data: clientData,
+            },
+            null,
+            2,
+          ),
+        )
+        throw new Error(`Error al crear cliente: ${clientError.message}`)
+      }
+
+      console.log("Client created:", clientResponse)
+
       // Create recommendation
-      const { data: recommendationData, error: recommendationError } = await supabase
+      const recommendationData = {
+        dj_id: djDetails.id,
+        client_id: clientId,
+        message: messageType === "normal" ? formData.message : null,
+        spotify_link: messageType === "spotify" ? formData.spotifyLink : null,
+        is_priority: messageType === "priority",
+        accepted: messageType === "priority", // Auto-accept priority messages
+      }
+
+      const { data: recommendationResponse, error: recommendationError } = await supabase
         .from("recommendations")
-        .insert({
-          dj_id: djDetails.id,
-          client_id: clientId,
-          message: messageType === "normal" ? formData.message : null,
-          spotify_link: messageType === "spotify" ? formData.spotifyLink : null,
-          is_priority: messageType === "priority",
-          accepted: messageType === "priority", // Auto-accept priority messages
-        })
+        .insert(recommendationData)
         .select()
         .single()
 
       if (recommendationError) {
-        throw recommendationError
+        console.error("Recommendation insertion error:", recommendationError)
+        throw new Error(`Error al crear recomendación: ${recommendationError.message}`)
       }
 
       // Redirect to payment page
-      router.push(`/tip/${params.code}/payment?recommendation=${recommendationData.id}`)
-    } catch (error) {
+      router.push(`/tip/${params.code}/payment?recommendation=${recommendationResponse.id}`)
+    } catch (error: any) {
       console.error("Error submitting recommendation:", error)
       toast({
         title: "Error",
-        description: "No se pudo enviar la recomendación",
+        description: error.message || "No se pudo enviar la recomendación",
         variant: "destructive",
       })
       setSubmitting(false)
@@ -260,6 +284,13 @@ export default function TipPage() {
                       Los mensajes prioritarios son aceptados automáticamente por el DJ.
                     </p>
                   </div>
+                </div>
+              )}
+
+              {debugInfo && (
+                <div className="mt-4 p-4 bg-muted rounded-md overflow-auto max-h-60">
+                  <p className="text-xs font-mono mb-2">Debug Info:</p>
+                  <pre className="text-xs font-mono">{debugInfo}</pre>
                 </div>
               )}
             </CardContent>

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/utils"
 import { DollarSign, ArrowDown, ArrowUp, Calendar, AlertCircle } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function PaymentsPage() {
   const { supabase, session } = useSupabase()
@@ -15,6 +16,7 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [payments, setPayments] = useState<any[]>([])
+  const [filteredPayments, setFilteredPayments] = useState<any[]>([])
   const [stats, setStats] = useState({
     total: 0,
     thisMonth: 0,
@@ -23,12 +25,42 @@ export default function PaymentsPage() {
     pendingWithdrawal: 0,
   })
   const [withdrawing, setWithdrawing] = useState(false)
+  const [sortOrder, setSortOrder] = useState<"date-desc" | "date-asc" | "amount-desc" | "amount-asc">("date-desc")
 
   useEffect(() => {
     if (!session) return
 
     fetchPayments()
   }, [session])
+
+  // Efecto para filtrar y ordenar pagos
+  useEffect(() => {
+    if (!payments.length) return
+
+    // Filtrar solo los últimos 7 días
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+    const filtered = payments.filter((payment) => new Date(payment.created_at) >= sevenDaysAgo)
+
+    // Ordenar según el criterio seleccionado
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortOrder) {
+        case "date-desc":
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        case "date-asc":
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        case "amount-desc":
+          return b.amount - a.amount
+        case "amount-asc":
+          return a.amount - b.amount
+        default:
+          return 0
+      }
+    })
+
+    setFilteredPayments(sorted)
+  }, [payments, sortOrder])
 
   const fetchPayments = async () => {
     try {
@@ -114,8 +146,9 @@ export default function PaymentsPage() {
       // Check if there's enough balance
       const availableBalance = stats.total - stats.pendingWithdrawal
 
-      if (availableBalance < 1500) {
-        throw new Error("El monto mínimo para retirar es de $1,500")
+      if (availableBalance < 500) {
+        // Ajustado para Uruguay
+        throw new Error("El monto mínimo para retirar es de $500")
       }
 
       // Calculate amount after fee (25%)
@@ -147,6 +180,10 @@ export default function PaymentsPage() {
     } finally {
       setWithdrawing(false)
     }
+  }
+
+  const handleSortChange = (value: string) => {
+    setSortOrder(value as "date-desc" | "date-asc" | "amount-desc" | "amount-asc")
   }
 
   if (loading) {
@@ -235,7 +272,7 @@ export default function PaymentsPage() {
           <CardFooter>
             <Button
               className="w-full"
-              disabled={withdrawing || stats.total - stats.pendingWithdrawal < 1500}
+              disabled={withdrawing || stats.total - stats.pendingWithdrawal < 500} // Ajustado para Uruguay
               onClick={handleWithdraw}
             >
               {withdrawing ? "Procesando..." : "Solicitar retiro"}
@@ -245,16 +282,29 @@ export default function PaymentsPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Historial de pagos</CardTitle>
-          <CardDescription>Todos los pagos recibidos</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Historial de pagos</CardTitle>
+            <CardDescription>Últimos 7 días</CardDescription>
+          </div>
+          <Select value={sortOrder} onValueChange={handleSortChange}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Ordenar por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date-desc">Más recientes</SelectItem>
+              <SelectItem value="date-asc">Más antiguos</SelectItem>
+              <SelectItem value="amount-desc">Mayor monto</SelectItem>
+              <SelectItem value="amount-asc">Menor monto</SelectItem>
+            </SelectContent>
+          </Select>
         </CardHeader>
         <CardContent>
-          {payments.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">No hay pagos para mostrar</p>
+          {filteredPayments.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">No hay pagos en los últimos 7 días</p>
           ) : (
             <div className="space-y-4">
-              {payments.map((payment) => (
+              {filteredPayments.map((payment) => (
                 <div
                   key={payment.id}
                   className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"

@@ -12,31 +12,38 @@ type SupabaseContext = {
   session: Session | null
 }
 
+// Crear el contexto
 const Context = createContext<SupabaseContext | undefined>(undefined)
+
+// Crear una única instancia del cliente de Supabase fuera del componente
+// para evitar múltiples instancias
+let supabaseInstance: SupabaseClient<Database> | null = null
+
+const getSupabaseClient = () => {
+  if (!supabaseInstance) {
+    try {
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        throw new Error("Faltan variables de entorno de Supabase")
+      }
+      supabaseInstance = createClientComponentClient<Database>()
+    } catch (e) {
+      console.error("Error al crear el cliente de Supabase:", e)
+      // Devolver un cliente vacío para evitar errores de tipo
+      supabaseInstance = createClientComponentClient<Database>({
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "https://example.com",
+        supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "example-key",
+      })
+    }
+  }
+  return supabaseInstance
+}
 
 export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   // Verificar si las variables de entorno están disponibles
   const [error, setError] = useState<string | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-
-  // Crear el cliente de Supabase solo si las variables de entorno están disponibles
-  const [supabase] = useState(() => {
-    try {
-      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        throw new Error("Faltan variables de entorno de Supabase")
-      }
-      return createClientComponentClient<Database>()
-    } catch (e) {
-      console.error("Error al crear el cliente de Supabase:", e)
-      setError("No se pudo conectar a la base de datos. Por favor, verifica la configuración.")
-      // Devolver un cliente vacío para evitar errores de tipo
-      return createClientComponentClient<Database>({
-        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "https://example.com",
-        supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "example-key",
-      })
-    }
-  })
+  const [supabase] = useState(() => getSupabaseClient())
 
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {

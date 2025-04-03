@@ -59,6 +59,18 @@ export default function SuccessPage() {
     }
   }
 
+  // Función para cerrar la ventana o redirigir
+  const handleClose = () => {
+    // Intentar cerrar la ventana
+    if (window.opener && !window.opener.closed) {
+      window.close()
+      return
+    }
+
+    // Si no se puede cerrar (no fue abierta con window.open), redirigir a la página principal
+    router.push("/")
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
@@ -101,7 +113,7 @@ export default function SuccessPage() {
             </p>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" onClick={() => window.close()}>
+            <Button className="w-full" onClick={handleClose}>
               Cerrar
             </Button>
           </CardFooter>

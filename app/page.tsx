@@ -145,7 +145,7 @@ export default function Home() {
                 <CardHeader>
                   <CardTitle>Plan Pro</CardTitle>
                   <CardDescription>Para DJs profesionales</CardDescription>
-                  <div className="mt-4 text-4xl font-bold">$2,500/mes</div>
+                  <div className="mt-4 text-4xl font-bold">$1,500/mes</div>
                 </CardHeader>
                 <CardContent className="flex-1">
                   <ul className="grid gap-2">
