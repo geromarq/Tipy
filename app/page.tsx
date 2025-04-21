@@ -1,8 +1,10 @@
 import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Check, Music, Headphones, DollarSign, QrCode } from "lucide-react"
+import { Check, Music, DollarSign, QrCode } from "lucide-react"
 import Link from "next/link"
+import { AnimatedIcon } from "@/components/animated-icon"
+import { ContactSection } from "@/components/contact-section"
 
 export default function Home() {
   return (
@@ -39,7 +41,7 @@ export default function Home() {
               <div className="flex justify-center">
                 <div className="relative w-full max-w-[500px] aspect-square rounded-full bg-gradient-to-tr from-primary to-purple-300 p-1">
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Headphones className="h-32 w-32 text-white" />
+                    <AnimatedIcon className="h-32 w-32 text-white" />
                   </div>
                 </div>
               </div>
@@ -52,9 +54,7 @@ export default function Home() {
           <div className="container px-4 md:px-6">
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
-                <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
-                  Características principales
-                </h2>
+                <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">Cómo funciona</h2>
                 <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                   Descubre cómo Tipy mejora la experiencia tanto para DJs como para el público
                 </p>
@@ -99,86 +99,123 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Pricing Section */}
-        <section id="pricing" className="w-full py-12 md:py-24 lg:py-32 bg-muted">
+        {/* DJ Section */}
+        <section id="dj-info" className="w-full py-12 md:py-24 lg:py-32 bg-muted">
           <div className="container px-4 md:px-6">
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
-                <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
-                  Planes simples y transparentes
-                </h2>
+                <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">Diseñado para DJs</h2>
                 <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  Elige el plan que mejor se adapte a tus necesidades
+                  Una nueva forma de conectar con tu público y mejorar la experiencia de tus eventos
                 </p>
               </div>
             </div>
-            <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 mt-8">
-              <Card className="flex flex-col">
+            <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2 mt-8">
+              <Card>
                 <CardHeader>
-                  <CardTitle>Plan Básico</CardTitle>
-                  <CardDescription>Para DJs que están comenzando</CardDescription>
-                  <div className="mt-4 text-4xl font-bold">Gratis</div>
+                  <CardTitle>Totalmente gratuito</CardTitle>
+                  <CardDescription>Sin suscripciones</CardDescription>
                 </CardHeader>
-                <CardContent className="flex-1">
+                <CardContent>
                   <ul className="grid gap-2">
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-primary" />
-                      <span>Recibe recomendaciones de música</span>
+                      <span>Regístrate y comienza a usar Tipy sin costo alguno</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-primary" />
-                      <span>Genera códigos QR</span>
+                      <span>Genera códigos QR ilimitados para tus eventos</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-primary" />
-                      <span>25% de comisión en propinas</span>
+                      <span>Integración con API de Spotify para reproducir directamente</span>
                     </li>
                   </ul>
                 </CardContent>
-                <div className="p-6 pt-0 mt-auto">
-                  <Link href="/dj/register">
-                    <Button className="w-full">Comenzar gratis</Button>
-                  </Link>
-                </div>
               </Card>
-              <Card className="flex flex-col border-primary">
+              <Card>
                 <CardHeader>
-                  <CardTitle>Plan Pro</CardTitle>
-                  <CardDescription>Para DJs profesionales</CardDescription>
-                  <div className="mt-4 text-4xl font-bold">$1,500/mes</div>
+                  <CardTitle>Mejora tu experiencia</CardTitle>
+                  <CardDescription>Optimiza tu trabajo como DJ</CardDescription>
                 </CardHeader>
-                <CardContent className="flex-1">
+                <CardContent>
                   <ul className="grid gap-2">
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-primary" />
-                      <span>Todo lo del plan básico</span>
+                      <span>Recibe sugerencias digitalmente sin interrupciones en tu equipo</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-primary" />
-                      <span>15% de comisión en propinas</span>
+                      <span>Evita que se acerquen con bebidas cerca de tu equipo</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-primary" />
-                      <span>Análisis detallado de recomendaciones</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-primary" />
-                      <span>Soporte prioritario</span>
+                      <span>Filtra peticiones repetitivas que no van con el ambiente</span>
                     </li>
                   </ul>
                 </CardContent>
-                <div className="p-6 pt-0 mt-auto">
-                  <Link href="/dj/register?plan=pro">
-                    <Button className="w-full">Comenzar prueba gratuita</Button>
-                  </Link>
-                </div>
+              </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* Client Section */}
+        <section id="client-info" className="w-full py-12 md:py-24 lg:py-32">
+          <div className="container px-4 md:px-6">
+            <div className="flex flex-col items-center justify-center space-y-4 text-center">
+              <div className="space-y-2">
+                <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">¿Eres cliente?</h2>
+                <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
+                  Sugerir música nunca fue tan fácil
+                </p>
+              </div>
+            </div>
+            <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-3 mt-8">
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex justify-center">
+                    <QrCode className="h-16 w-16 text-primary mb-2" />
+                  </div>
+                  <CardTitle className="text-center">1. Escanea el QR</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-center text-muted-foreground">
+                    Escanea el código QR que el DJ comparte en el evento
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex justify-center">
+                    <Music className="h-16 w-16 text-primary mb-2" />
+                  </div>
+                  <CardTitle className="text-center">2. Sugiere tu canción</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-center text-muted-foreground">
+                    Escribe el nombre de la canción o comparte un enlace de Spotify
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex justify-center">
+                    <DollarSign className="h-16 w-16 text-primary mb-2" />
+                  </div>
+                  <CardTitle className="text-center">3. Paga con Mercado Pago</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-center text-muted-foreground">
+                    Realiza el pago de forma rápida y segura, ¡y disfruta de tu canción!
+                  </p>
+                </CardContent>
               </Card>
             </div>
           </div>
         </section>
 
         {/* Testimonials Section */}
-        <section className="w-full py-12 md:py-24 lg:py-32">
+        <section className="w-full py-12 md:py-24 lg:py-32 bg-muted">
           <div className="container px-4 md:px-6">
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
@@ -195,12 +232,13 @@ export default function Home() {
                 <CardContent className="p-6">
                   <div className="flex flex-col gap-4">
                     <p className="text-lg italic">
-                      "Tipy ha revolucionado la forma en que interactúo con mi público. Ahora recibo recomendaciones
-                      relevantes y propinas en tiempo real."
+                      "La verdad, no pensé que fuera a funcionar tan bien. Pero me sorprendió. La gente realmente usó el
+                      sistema y hasta me mandaban sugerencias constantemente. Me encantó la experiencia, fue algo
+                      diferente y muy positivo para las fiestas."
                     </p>
                     <div>
-                      <p className="font-semibold">DJ Martín</p>
-                      <p className="text-sm text-muted-foreground">Buenos Aires</p>
+                      <p className="font-semibold">Sebastián</p>
+                      <p className="text-sm text-muted-foreground">DJ de eventos privados</p>
                     </div>
                   </div>
                 </CardContent>
@@ -209,12 +247,12 @@ export default function Home() {
                 <CardContent className="p-6">
                   <div className="flex flex-col gap-4">
                     <p className="text-lg italic">
-                      "La integración con Mercado Pago es perfecta. Mis ingresos han aumentado significativamente desde
-                      que empecé a usar Tipy."
+                      "Probé la demo en un par de eventos y funcionó bárbaro. La gente se acercaba y lo usaba sin
+                      problema. A los grupos grandes les copó, se re enganchaban con mandar temas."
                     </p>
                     <div>
-                      <p className="font-semibold">DJ Laura</p>
-                      <p className="text-sm text-muted-foreground">Córdoba</p>
+                      <p className="font-semibold">Martina J.</p>
+                      <p className="text-sm text-muted-foreground">DJ de eventos privados</p>
                     </div>
                   </div>
                 </CardContent>
@@ -223,12 +261,13 @@ export default function Home() {
                 <CardContent className="p-6">
                   <div className="flex flex-col gap-4">
                     <p className="text-lg italic">
-                      "Los códigos QR son geniales para eventos específicos. Puedo activarlos y desactivarlos según mis
-                      necesidades."
+                      "Lo que más me gustó fue lo fácil que es de usar. Escaneás el QR, escribís el tema que querés
+                      escuchar, pagas con tu cuenta de Mercado Pago y ya está. Además, que se puedan pegar links de
+                      Spotify me pareció un golazo."
                     </p>
                     <div>
-                      <p className="font-semibold">DJ Carlos</p>
-                      <p className="text-sm text-muted-foreground">Rosario</p>
+                      <p className="font-semibold">Alejandro M.</p>
+                      <p className="text-sm text-muted-foreground">Usuario Entrevistado</p>
                     </div>
                   </div>
                 </CardContent>
@@ -236,6 +275,7 @@ export default function Home() {
             </div>
           </div>
         </section>
+        <ContactSection />
       </main>
       <footer className="w-full border-t py-6 md:py-0">
         <div className="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
@@ -255,4 +295,3 @@ export default function Home() {
     </div>
   )
 }
-

@@ -8,17 +8,19 @@ import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+import { AlertCircle } from "lucide-react"
 
 export default function Login() {
   const router = useRouter()
   const { supabase } = useSupabase()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
-    email: "",
+    identifier: "", // Ahora usamos un campo genérico para email o username
     password: "",
   })
 
@@ -30,21 +32,42 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      })
+      // Determinar si el identificador es un email o un nombre de usuario
+      const isEmail = formData.identifier.includes("@")
+      let userData = {}
+
+      if (isEmail) {
+        // Si es un email, usamos el método normal de inicio de sesión
+        userData = {
+          email: formData.identifier,
+          password: formData.password,
+        }
+      } else {
+        // Si es un nombre de usuario (arroba), buscamos primero el email asociado
+        const { data: djData, error: djError } = await supabase
+          .from("djs")
+          .select("email")
+          .eq("username", formData.identifier)
+          .single()
+
+        if (djError || !djData) {
+          throw new Error("Nombre de usuario no encontrado")
+        }
+
+        userData = {
+          email: djData.email,
+          password: formData.password,
+        }
+      }
+
+      // Iniciar sesión con el email (ya sea proporcionado directamente o encontrado por username)
+      const { data, error } = await supabase.auth.signInWithPassword(userData as any)
 
       if (error) {
-        toast({
-          title: "Error al iniciar sesión",
-          description: error.message,
-          variant: "destructive",
-        })
-        setLoading(false)
-        return
+        throw error
       }
 
       if (data.user) {
@@ -73,10 +96,10 @@ export default function Login() {
           // Crear perfil de DJ
           const { error: createError } = await supabase.from("djs").insert({
             id: data.user.id,
-            email: data.user.email || formData.email,
+            email: data.user.email || "",
             username: data.user.email?.split("@")[0] || "user_" + Date.now(),
             display_name: data.user.email?.split("@")[0] || "Usuario",
-            min_tip_amount: 100,
+            min_tip_amount: 10, // Actualizado a 10 pesos mínimo
             password_hash: passwordHash,
           })
 
@@ -96,11 +119,12 @@ export default function Login() {
         // Redirigir al dashboard
         router.push("/dj/dashboard")
       }
-    } catch (error) {
-      console.error("Error de inicio de sesión:", error)
+    } catch (err: any) {
+      console.error("Error de inicio de sesión:", err)
+      setError(err.message || "Ocurrió un error durante el inicio de sesión")
       toast({
         title: "Error",
-        description: "Ocurrió un error durante el inicio de sesión",
+        description: err.message || "Ocurrió un error durante el inicio de sesión",
         variant: "destructive",
       })
     } finally {
@@ -118,17 +142,27 @@ export default function Login() {
         </div>
         <Card>
           <form onSubmit={handleSubmit}>
-            <CardContent className="pt-6">
+            <CardHeader>
+              {error && (
+                <div className="flex items-center gap-2 p-3 mb-4 bg-destructive/10 text-destructive rounded-md">
+                  <AlertCircle className="h-5 w-5" />
+                  <p className="text-sm">{error}</p>
+                </div>
+              )}
+              <CardTitle className="text-xl">Bienvenido de nuevo</CardTitle>
+              <CardDescription>Ingresa tu email o nombre de usuario</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
               <div className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Correo electrónico</Label>
+                  <Label htmlFor="identifier">Email o nombre de usuario</Label>
                   <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="tu@email.com"
+                    id="identifier"
+                    name="identifier"
+                    type="text"
+                    placeholder="tu@email.com o tu-username"
                     required
-                    value={formData.email}
+                    value={formData.identifier}
                     onChange={handleChange}
                   />
                 </div>
@@ -168,4 +202,3 @@ export default function Login() {
     </div>
   )
 }
-

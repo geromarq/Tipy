@@ -10,7 +10,11 @@ import { useRouter } from "next/navigation"
 import { Logo } from "@/components/logo"
 import { useToast } from "@/hooks/use-toast"
 
-export function DashboardNav() {
+interface DashboardNavProps {
+  onNavItemClick?: () => void
+}
+
+export function DashboardNav({ onNavItemClick }: DashboardNavProps) {
   const pathname = usePathname()
   const { supabase } = useSupabase()
   const router = useRouter()
@@ -35,6 +39,15 @@ export function DashboardNav() {
     }
   }
 
+  const handleNavItemClick = (href: string) => {
+    if (onNavItemClick) {
+      onNavItemClick()
+    }
+
+    // Si estamos en la misma página, no hacemos nada más
+    if (pathname === href) return
+  }
+
   const navItems = [
     {
       title: "Dashboard",
@@ -57,7 +70,7 @@ export function DashboardNav() {
       icon: <DollarSign className="mr-2 h-4 w-4" />,
     },
     {
-      title: "Códigos QR",
+      title: "Códigos QRs",
       href: "/dj/dashboard/qr",
       icon: <QrCode className="mr-2 h-4 w-4" />,
     },
@@ -79,6 +92,7 @@ export function DashboardNav() {
                 "flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
                 pathname === item.href ? "bg-accent text-accent-foreground" : "transparent",
               )}
+              onClick={() => handleNavItemClick(item.href)}
             >
               {item.icon}
               <span>{item.title}</span>
@@ -87,7 +101,14 @@ export function DashboardNav() {
         </div>
       </div>
       <div className="mt-auto px-3 py-2">
-        <Button variant="outline" className="w-full justify-start" onClick={handleSignOut}>
+        <Button
+          variant="outline"
+          className="w-full justify-start"
+          onClick={() => {
+            if (onNavItemClick) onNavItemClick()
+            handleSignOut()
+          }}
+        >
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar sesión
         </Button>
@@ -95,4 +116,3 @@ export function DashboardNav() {
     </div>
   )
 }
-

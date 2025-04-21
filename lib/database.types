@@ -12,7 +12,7 @@ export interface Database {
           min_tip_amount: number
           created_at: string
           updated_at: string | null
-          password_hash: string
+          password_hash: string // Añadido el campo password_hash
         }
         Insert: {
           id: string
@@ -22,7 +22,7 @@ export interface Database {
           min_tip_amount?: number
           created_at?: string
           updated_at?: string | null
-          password_hash: string
+          password_hash: string // Añadido el campo password_hash
         }
         Update: {
           id?: string
@@ -32,7 +32,7 @@ export interface Database {
           min_tip_amount?: number
           created_at?: string
           updated_at?: string | null
-          password_hash?: string
+          password_hash?: string // Añadido el campo password_hash
         }
       }
       qr_codes: {
@@ -168,7 +168,32 @@ export interface Database {
           processed_at?: string | null
         }
       }
+      bank_details: {
+        Row: {
+          id: string
+          withdrawal_id: string
+          dj_id: string
+          bank_name: string
+          account_number: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          withdrawal_id: string
+          dj_id: string
+          bank_name: string
+          account_number: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          withdrawal_id?: string
+          dj_id?: string
+          bank_name?: string
+          account_number?: string
+          created_at?: string
+        }
+      }
     }
   }
 }
-

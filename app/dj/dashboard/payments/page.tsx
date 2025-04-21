@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useSupabase } from "@/lib/supabase-provider"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 export default function PaymentsPage() {
   const { supabase, session } = useSupabase()
   const { toast } = useToast()
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [payments, setPayments] = useState<any[]>([])
@@ -24,8 +26,9 @@ export default function PaymentsPage() {
     thisWeek: 0,
     pendingWithdrawal: 0,
   })
-  const [withdrawing, setWithdrawing] = useState(false)
   const [sortOrder, setSortOrder] = useState<"date-desc" | "date-asc" | "amount-desc" | "amount-asc">("date-desc")
+
+  const MIN_WITHDRAWAL_AMOUNT = 1000 // Monto mínimo para retirar: $1000
 
   useEffect(() => {
     if (!session) return
@@ -135,51 +138,8 @@ export default function PaymentsPage() {
     }
   }
 
-  const handleWithdraw = async () => {
-    try {
-      if (!session) {
-        throw new Error("No hay sesión activa")
-      }
-
-      setWithdrawing(true)
-
-      // Check if there's enough balance
-      const availableBalance = stats.total - stats.pendingWithdrawal
-
-      if (availableBalance < 500) {
-        // Ajustado para Uruguay
-        throw new Error("El monto mínimo para retirar es de $500")
-      }
-
-      // Calculate amount after fee (25%)
-      const fee = availableBalance * 0.25
-      const withdrawalAmount = availableBalance - fee
-
-      // Create withdrawal request
-      const { error } = await supabase.from("withdrawals").insert({
-        dj_id: session.user.id,
-        amount: withdrawalAmount,
-        status: "pending",
-      })
-
-      if (error) throw error
-
-      toast({
-        title: "Solicitud enviada",
-        description: `Tu solicitud de retiro por ${formatCurrency(withdrawalAmount)} ha sido enviada`,
-      })
-
-      fetchPayments()
-    } catch (err: any) {
-      console.error("Error al crear la solicitud de retiro:", err)
-      toast({
-        title: "Error",
-        description: err.message || "No se pudo crear la solicitud de retiro",
-        variant: "destructive",
-      })
-    } finally {
-      setWithdrawing(false)
-    }
+  const handleWithdraw = () => {
+    router.push("/dj/dashboard/payments/withdraw")
   }
 
   const handleSortChange = (value: string) => {
@@ -268,14 +228,17 @@ export default function PaymentsPage() {
             <p className="text-xs text-muted-foreground">
               {stats.pendingWithdrawal > 0 && `${formatCurrency(stats.pendingWithdrawal)} en proceso`}
             </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Monto mínimo para retirar: {formatCurrency(MIN_WITHDRAWAL_AMOUNT)}
+            </p>
           </CardContent>
           <CardFooter>
             <Button
               className="w-full"
-              disabled={withdrawing || stats.total - stats.pendingWithdrawal < 500} // Ajustado para Uruguay
+              disabled={stats.total - stats.pendingWithdrawal < MIN_WITHDRAWAL_AMOUNT}
               onClick={handleWithdraw}
             >
-              {withdrawing ? "Procesando..." : "Solicitar retiro"}
+              Solicitar retiro
             </Button>
           </CardFooter>
         </Card>
@@ -326,4 +289,3 @@ export default function PaymentsPage() {
     </div>
   )
 }
-

@@ -119,3 +119,47 @@ export async function getPaymentStatus(paymentId: string) {
   }
 }
 
+// Nueva función para procesar reembolsos
+export async function refundPayment(paymentId: string, amount?: number) {
+  try {
+    // Verificar que el token de acceso esté disponible
+    if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
+      throw new Error("MERCADOPAGO_ACCESS_TOKEN no está configurado")
+    }
+
+    // Generar una clave de idempotencia única
+    const idempotencyKey = `refund_${paymentId}_${Date.now()}`
+
+    // Preparar datos para el reembolso
+    const refundData = amount ? { amount } : {}
+
+    console.log(`Solicitando reembolso para pago ${paymentId}${amount ? ` por ${amount}` : " (total)"}`)
+
+    // Realizar la solicitud a la API de Mercado Pago
+    const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}/refunds`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+        "X-Idempotency-Key": idempotencyKey, // Prevenir duplicados
+        "User-Agent": "Tipy/1.0", // Identificar la aplicación
+      },
+      body: JSON.stringify(refundData),
+    })
+
+    // Manejar errores de la API
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("Error al procesar reembolso:", errorText)
+      throw new Error(`Error processing refund: ${response.status} - ${errorText}`)
+    }
+
+    // Procesar la respuesta
+    const data = await response.json()
+    console.log("Reembolso procesado:", JSON.stringify(data, null, 2))
+    return data
+  } catch (error) {
+    console.error("Error refunding payment:", error)
+    throw error
+  }
+}

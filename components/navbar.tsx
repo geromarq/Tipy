@@ -16,10 +16,27 @@ export function Navbar() {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(true)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [djProfile, setDjProfile] = useState<any>(null)
 
   useEffect(() => {
     setIsLoading(false)
-  }, [session])
+
+    // Si hay sesión, cargar el perfil del DJ
+    if (session) {
+      const fetchDjProfile = async () => {
+        try {
+          const { data, error } = await supabase.from("djs").select("*").eq("id", session.user.id).single()
+          if (!error && data) {
+            setDjProfile(data)
+          }
+        } catch (error) {
+          console.error("Error al cargar el perfil del DJ:", error)
+        }
+      }
+
+      fetchDjProfile()
+    }
+  }, [session, supabase])
 
   const handleSignOut = async () => {
     try {
@@ -44,6 +61,9 @@ export function Navbar() {
     return null
   }
 
+  // Determinar si estamos en el dashboard
+  const isDashboard = pathname.startsWith("/dj/dashboard")
+
   const navItems = [
     {
       label: "Características",
@@ -51,14 +71,14 @@ export function Navbar() {
       show: !pathname.startsWith("/dj/"),
     },
     {
-      label: "Precios",
-      href: "/#pricing",
+      label: "Clientes", // Cambiado de "Precios" a "Clientes"
+      href: "/#client-info", // Cambiado para que vaya a la sección de clientes
       show: !pathname.startsWith("/dj/"),
     },
     {
       label: "Dashboard",
       href: "/dj/dashboard",
-      show: !!session,
+      show: !!session && !isDashboard,
     },
   ]
 
@@ -86,7 +106,17 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
-        <Logo />
+        {/* Logo con tamaño condicional según si estamos en el dashboard */}
+        <div className="flex items-center">
+          <Logo size={isDashboard ? "sm" : "lg"} isDashboard={isDashboard} />
+
+          {/* Mostrar "Bienvenido" en desktop para el dashboard */}
+          {isDashboard && djProfile && (
+            <span className="ml-4 hidden md:inline-block text-lg font-medium">
+              Bienvenido, {djProfile.display_name}
+            </span>
+          )}
+        </div>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-4">
@@ -111,50 +141,51 @@ export function Navbar() {
           )}
         </nav>
 
-        {/* Mobile Navigation */}
-        <div className="flex items-center md:hidden">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="ml-2">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Abrir menú</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[250px] sm:w-[300px]">
-              <div className="flex flex-col h-full py-6">
-                <div className="flex flex-col gap-4">
-                  {navItems
-                    .filter((item) => item.show)
-                    .map((item, index) => (
-                      <Link key={index} href={item.href} onClick={() => setIsMenuOpen(false)}>
-                        <Button variant="ghost" className="w-full justify-start">
-                          {item.label}
-                        </Button>
-                      </Link>
-                    ))}
-                </div>
+        {/* Mobile Navigation - No mostrar en el dashboard */}
+        {!isDashboard && (
+          <div className="flex items-center md:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="ml-2">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Abrir menú</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[250px] sm:w-[300px]">
+                <div className="flex flex-col h-full py-6">
+                  <div className="flex flex-col gap-4">
+                    {navItems
+                      .filter((item) => item.show)
+                      .map((item, index) => (
+                        <Link key={index} href={item.href} onClick={() => setIsMenuOpen(false)}>
+                          <Button variant="ghost" className="w-full justify-start">
+                            {item.label}
+                          </Button>
+                        </Link>
+                      ))}
+                  </div>
 
-                <div className="mt-auto flex flex-col gap-2">
-                  {authItems.map((item, index) =>
-                    item.href ? (
-                      <Link key={index} href={item.href} onClick={() => setIsMenuOpen(false)}>
-                        <Button variant={item.variant} className="w-full">
+                  <div className="mt-auto flex flex-col gap-2">
+                    {authItems.map((item, index) =>
+                      item.href ? (
+                        <Link key={index} href={item.href} onClick={() => setIsMenuOpen(false)}>
+                          <Button variant={item.variant} className="w-full">
+                            {item.label}
+                          </Button>
+                        </Link>
+                      ) : (
+                        <Button key={index} variant={item.variant} onClick={item.action} className="w-full">
                           {item.label}
                         </Button>
-                      </Link>
-                    ) : (
-                      <Button key={index} variant={item.variant} onClick={item.action} className="w-full">
-                        {item.label}
-                      </Button>
-                    ),
-                  )}
+                      ),
+                    )}
+                  </div>
                 </div>
-              </div>
-            </SheetContent>
-          </Sheet>
-        </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+        )}
       </div>
     </header>
   )
 }
-

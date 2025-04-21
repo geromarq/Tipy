@@ -43,4 +43,3 @@ export async function getUserDetails() {
     return null
   }
 }
-

@@ -18,6 +18,8 @@ export default function DashboardLayout({
   const { supabase, session } = useSupabase()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
+  const [djProfile, setDjProfile] = useState<any>(null)
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
 
   useEffect(() => {
     // Simplificamos la verificación: solo comprobamos si hay sesión
@@ -26,9 +28,22 @@ export default function DashboardLayout({
       return
     }
 
-    // No bloqueamos el acceso al dashboard, simplemente verificamos la sesión
+    // Cargar el perfil del DJ
+    const fetchDjProfile = async () => {
+      try {
+        const { data, error } = await supabase.from("djs").select("*").eq("id", session.user.id).single()
+
+        if (!error && data) {
+          setDjProfile(data)
+        }
+      } catch (error) {
+        console.error("Error al cargar el perfil del DJ:", error)
+      }
+    }
+
+    fetchDjProfile()
     setIsLoading(false)
-  }, [session, router])
+  }, [session, router, supabase])
 
   if (isLoading) {
     return (
@@ -50,9 +65,9 @@ export default function DashboardLayout({
           <DashboardNav />
         </aside>
 
-        {/* Menú móvil */}
+        {/* Menú móvil - Solo mostrar una vez */}
         <div className="sticky top-16 z-30 flex items-center justify-between py-4 md:hidden">
-          <Sheet>
+          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="mr-2">
                 <Menu className="h-5 w-5" />
@@ -60,10 +75,10 @@ export default function DashboardLayout({
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-[80%] sm:w-[350px] p-0">
-              <DashboardNav />
+              <DashboardNav onNavItemClick={() => setIsSheetOpen(false)} />
             </SheetContent>
           </Sheet>
-          <h1 className="text-xl font-bold">Dashboard DJ</h1>
+          {djProfile && <p className="text-muted-foreground">Bienvenido, {djProfile.display_name}</p>}
         </div>
 
         <main className="flex w-full flex-col overflow-hidden">{children}</main>
@@ -71,4 +86,3 @@ export default function DashboardLayout({
     </div>
   )
 }
-

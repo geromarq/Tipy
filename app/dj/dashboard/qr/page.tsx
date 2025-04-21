@@ -8,7 +8,8 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { generateQrCode } from "@/lib/utils"
-import { Copy, Plus, Trash, AlertCircle } from "lucide-react"
+import { Copy, Plus, Trash, AlertCircle, Download, LinkIcon } from "lucide-react"
+import QRCode from "react-qr-code"
 
 export default function QrPage() {
   const { supabase, session } = useSupabase()
@@ -20,13 +21,8 @@ export default function QrPage() {
   const [appUrl, setAppUrl] = useState("")
 
   useEffect(() => {
-    // Usar la variable de entorno NEXT_PUBLIC_APP_URL o calcular la URL base
-    const url =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (typeof window !== "undefined"
-        ? `${window.location.protocol}//${window.location.host}`
-        : "https://v0-tipy-six.vercel.app")
-    setAppUrl(url)
+    // Usar la URL correcta para los enlaces QR
+    setAppUrl("https://tipy.uy")
 
     if (!session) return
     fetchQrCodes()
@@ -170,6 +166,56 @@ export default function QrPage() {
     })
   }
 
+  const downloadQR = (code: string) => {
+    // Crear un canvas a partir del SVG
+    const svg = document.getElementById(`qr-${code}`)
+    if (!svg) return
+
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    // Configurar el tamaño del canvas
+    canvas.width = 300
+    canvas.height = 300
+
+    // Crear una imagen a partir del SVG
+    const svgData = new XMLSerializer().serializeToString(svg)
+    const img = new Image()
+    img.src = "data:image/svg+xml;base64," + btoa(svgData)
+
+    img.onload = () => {
+      // Dibujar un fondo blanco
+      ctx.fillStyle = "white"
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+      // Dibujar la imagen del QR
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+      // Convertir a PNG y descargar
+      const dataUrl = canvas.toDataURL("image/png")
+      const link = document.createElement("a")
+      link.href = dataUrl
+      link.download = `qr-tipy-${code}.png`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast({
+        title: "QR descargado",
+        description: "El código QR ha sido descargado correctamente",
+      })
+    }
+
+    img.onerror = () => {
+      toast({
+        title: "Error",
+        description: "No se pudo descargar el código QR",
+        variant: "destructive",
+      })
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex-1 p-8 pt-6 flex items-center justify-center">
@@ -200,7 +246,7 @@ export default function QrPage() {
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Códigos QR</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Códigos QRs</h2>
         <Button onClick={createQrCode} disabled={creating}>
           <Plus className="mr-2 h-4 w-4" />
           {creating ? "Creando..." : "Crear nuevo QR"}
@@ -238,23 +284,44 @@ export default function QrPage() {
                 </CardTitle>
                 <CardDescription>Creado el {new Date(qr.created_at).toLocaleDateString()}</CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col items-center">
-                <div className="bg-accent p-4 rounded-md mb-4 w-full max-w-md overflow-hidden">
-                  <p className="text-center font-medium mb-2">Enlace para compartir:</p>
+              <CardContent className="flex flex-col items-center gap-4">
+                {/* QR Code usando react-qr-code */}
+                <div className="bg-white p-3 rounded-md">
+                  <QRCode
+                    id={`qr-${qr.code}`}
+                    value={`${appUrl}/tip/${qr.code}`}
+                    size={150}
+                    level="H"
+                    style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                  />
+                </div>
+
+                {/* Link */}
+                <div className="w-full">
+                  <p className="text-sm font-medium mb-2">Enlace:</p>
                   <div className="bg-background p-2 rounded border flex items-center">
                     <span className="truncate text-sm">{`${appUrl}/tip/${qr.code}`}</span>
+                    <Button variant="ghost" size="sm" className="ml-auto" onClick={() => copyQrLink(qr.code)}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-                <div className="text-sm text-muted-foreground mb-4 text-center">
+
+                <div className="text-sm text-muted-foreground text-center">
                   {qr.active
-                    ? "Este enlace está activo y puede ser compartido con el público"
-                    : "Este enlace está inactivo y no puede ser usado por el público"}
+                    ? "Este QR está activo y puede ser compartido con el público"
+                    : "Este QR está inactivo y no puede ser usado por el público"}
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between">
                 <div className="flex space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => copyQrLink(qr.code)}>
-                    <Copy className="h-4 w-4" />
+                  <Button variant="outline" size="sm" onClick={() => copyQrLink(qr.code)} title="Copiar enlace">
+                    <LinkIcon className="h-4 w-4 mr-1" />
+                    <span className="hidden sm:inline">Copiar</span>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => downloadQR(qr.code)} title="Descargar QR">
+                    <Download className="h-4 w-4 mr-1" />
+                    <span className="hidden sm:inline">Guardar</span>
                   </Button>
                 </div>
                 <Button variant="destructive" size="sm" onClick={() => deleteQrCode(qr.id)}>
@@ -268,4 +335,3 @@ export default function QrPage() {
     </div>
   )
 }
-

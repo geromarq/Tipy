@@ -79,6 +79,12 @@ export default function TipPage() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Permite solo dígitos y elimina cualquier otro caracter
+    const value = e.target.value.replace(/\D/g, "")
+    setFormData((prev) => ({ ...prev, phone: value }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
@@ -209,7 +215,10 @@ export default function TipPage() {
                   placeholder="Tu número de teléfono"
                   required
                   value={formData.phone}
-                  onChange={handleChange}
+                  onChange={handlePhoneChange}
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                 />
               </div>
               <div className="space-y-2">
@@ -308,4 +317,3 @@ export default function TipPage() {
     </div>
   )
 }
-

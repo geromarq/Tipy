@@ -7,9 +7,30 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { formatPhoneNumber } from "@/lib/utils"
-import { Check, X, Music, LinkIcon, Star, ExternalLink, AlertCircle, Info, Clock } from "lucide-react"
+import { formatPhoneNumber, formatCurrency } from "@/lib/utils"
+import {
+  Check,
+  X,
+  Music,
+  LinkIcon,
+  Star,
+  ExternalLink,
+  AlertCircle,
+  Info,
+  Clock,
+  CheckCircle,
+  RefreshCcw,
+  AlertTriangle,
+} from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 export default function SuggestionsPage() {
   const { supabase, session } = useSupabase()
@@ -18,8 +39,19 @@ export default function SuggestionsPage() {
   const [error, setError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState("pending")
-  const [acceptedTimes, setAcceptedTimes] = useState<{ [key: string]: Date }>({})
   const [now, setNow] = useState(new Date())
+  const [showOlderSuggestions, setShowOlderSuggestions] = useState(false)
+  const [hiddenSuggestions, setHiddenSuggestions] = useState<string[]>([])
+  const [processingRefund, setProcessingRefund] = useState<string | null>(null)
+  const [confirmRefundDialog, setConfirmRefundDialog] = useState<{
+    open: boolean
+    suggestionId: string | null
+    paymentInfo: any | null
+  }>({
+    open: false,
+    suggestionId: null,
+    paymentInfo: null,
+  })
 
   // Actualizar el tiempo actual cada segundo para los temporizadores
   useEffect(() => {
@@ -70,15 +102,7 @@ export default function SuggestionsPage() {
         ) || []
 
       setSuggestions(paidSuggestions)
-
-      // Inicializar los tiempos de aceptación para las sugerencias recién aceptadas
-      const newAcceptedTimes = { ...acceptedTimes }
-      paidSuggestions.forEach((suggestion) => {
-        if (suggestion.accepted && !acceptedTimes[suggestion.id]) {
-          newAcceptedTimes[suggestion.id] = new Date()
-        }
-      })
-      setAcceptedTimes(newAcceptedTimes)
+      setShowOlderSuggestions(false)
     } catch (err: any) {
       console.error("Error al cargar las sugerencias:", err)
       setError(err.message || "No se pudieron cargar las sugerencias")
@@ -111,12 +135,6 @@ export default function SuggestionsPage() {
         suggestions.map((suggestion) => (suggestion.id === id ? { ...suggestion, accepted: true } : suggestion)),
       )
 
-      // Registrar el tiempo de aceptación
-      setAcceptedTimes((prev) => ({
-        ...prev,
-        [id]: new Date(),
-      }))
-
       toast({
         title: "Sugerencia aceptada",
         description: "La sugerencia ha sido aceptada",
@@ -133,6 +151,40 @@ export default function SuggestionsPage() {
 
   const handleReject = async (id: string) => {
     try {
+      // Buscar la sugerencia para obtener información de pago
+      const suggestion = suggestions.find((s) => s.id === id)
+
+      if (!suggestion) {
+        throw new Error("Sugerencia no encontrada")
+      }
+
+      // Verificar si hay pagos aprobados
+      const approvedPayment = suggestion.payments?.find((p: any) => p.status === "approved")
+
+      if (approvedPayment) {
+        // Mostrar diálogo de confirmación con información del pago
+        setConfirmRefundDialog({
+          open: true,
+          suggestionId: id,
+          paymentInfo: approvedPayment,
+        })
+        return
+      }
+
+      // Si no hay pagos aprobados, simplemente eliminar la sugerencia
+      await deleteRecommendation(id)
+    } catch (err: any) {
+      console.error("Error al rechazar la sugerencia:", err)
+      toast({
+        title: "Error",
+        description: err.message || "No se pudo rechazar la sugerencia",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const deleteRecommendation = async (id: string) => {
+    try {
       if (!session) {
         throw new Error("No hay sesión activa")
       }
@@ -148,13 +200,77 @@ export default function SuggestionsPage() {
         description: "La sugerencia ha sido rechazada",
       })
     } catch (err: any) {
-      console.error("Error al rechazar la sugerencia:", err)
+      console.error("Error al eliminar la recomendación:", err)
       toast({
         title: "Error",
-        description: err.message || "No se pudo rechazar la sugerencia",
+        description: err.message || "No se pudo eliminar la recomendación",
         variant: "destructive",
       })
     }
+  }
+
+  const handleConfirmRefund = async () => {
+    if (!confirmRefundDialog.suggestionId || !confirmRefundDialog.paymentInfo) {
+      return
+    }
+
+    const suggestionId = confirmRefundDialog.suggestionId
+    const paymentInfo = confirmRefundDialog.paymentInfo
+
+    setProcessingRefund(suggestionId)
+    setConfirmRefundDialog({ open: false, suggestionId: null, paymentInfo: null })
+
+    try {
+      // Procesar el reembolso
+      const response = await fetch("/api/refund-payment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mercadopagoId: paymentInfo.mercadopago_id,
+          recommendationId: suggestionId,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Error al procesar el reembolso")
+      }
+
+      // Actualizar la lista de sugerencias
+      setSuggestions(suggestions.filter((suggestion) => suggestion.id !== suggestionId))
+
+      toast({
+        title: "Reembolso procesado",
+        description: "La sugerencia ha sido rechazada y el pago reembolsado",
+      })
+    } catch (err: any) {
+      console.error("Error al procesar el reembolso:", err)
+      toast({
+        title: "Error",
+        description: err.message || "No se pudo procesar el reembolso",
+        variant: "destructive",
+      })
+
+      // Intentar eliminar la sugerencia de todos modos
+      try {
+        await deleteRecommendation(suggestionId)
+      } catch (deleteErr) {
+        console.error("Error al eliminar la recomendación después de un reembolso fallido:", deleteErr)
+      }
+    } finally {
+      setProcessingRefund(null)
+    }
+  }
+
+  const handleHideSuggestion = (id: string) => {
+    setHiddenSuggestions((prev) => [...prev, id])
+    toast({
+      title: "Sugerencia ocultada",
+      description: "La sugerencia ha sido ocultada de esta vista",
+    })
   }
 
   const getSuggestionIcon = (suggestion: any) => {
@@ -225,12 +341,34 @@ export default function SuggestionsPage() {
     return suggestion.payments && suggestion.payments.some((payment: any) => payment.status === "approved")
   }
 
-  // Calcular el tiempo restante para una sugerencia aceptada (en minutos y segundos)
-  const getRemainingTime = (suggestionId: string) => {
-    if (!acceptedTimes[suggestionId]) return null
+  // Verificar si una sugerencia está dentro de la ventana de 1 hora desde su creación
+  const isWithinTimeWindow = (suggestion: any) => {
+    if (!suggestion.created_at) return false
 
-    const acceptedTime = acceptedTimes[suggestionId]
-    const oneHourLater = new Date(acceptedTime)
+    const creationTime = new Date(suggestion.created_at)
+    const oneHourLater = new Date(creationTime)
+    oneHourLater.setHours(oneHourLater.getHours() + 1)
+
+    return now < oneHourLater
+  }
+
+  // Verificar si una sugerencia es de hace más de 1 día
+  const isOlderThanOneDay = (suggestion: any) => {
+    if (!suggestion.created_at) return false
+
+    const creationTime = new Date(suggestion.created_at)
+    const oneDayAgo = new Date(now)
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1)
+
+    return creationTime < oneDayAgo
+  }
+
+  // Calcular el tiempo restante para una sugerencia (en minutos y segundos)
+  const getRemainingTime = (suggestion: any) => {
+    if (!suggestion.created_at) return null
+
+    const creationTime = new Date(suggestion.created_at)
+    const oneHourLater = new Date(creationTime)
     oneHourLater.setHours(oneHourLater.getHours() + 1)
 
     const diffMs = oneHourLater.getTime() - now.getTime()
@@ -242,31 +380,44 @@ export default function SuggestionsPage() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
   }
 
-  // Verificar si una sugerencia está dentro de la ventana de 1 hora
-  const isWithinTimeWindow = (suggestionId: string) => {
-    if (!acceptedTimes[suggestionId]) return false
+  // Filtrar sugerencias según criterios
+  const filterSuggestions = (suggestions: any[]) => {
+    // Filtrar sugerencias ocultas
+    let filtered = suggestions.filter((s) => !hiddenSuggestions.includes(s.id))
 
-    const acceptedTime = acceptedTimes[suggestionId]
-    const oneHourLater = new Date(acceptedTime)
-    oneHourLater.setHours(oneHourLater.getHours() + 1)
+    // Si no estamos mostrando sugerencias antiguas, filtrar las de más de 1 día
+    if (!showOlderSuggestions && activeTab === "all") {
+      filtered = filtered.filter((s) => !isOlderThanOneDay(s))
+    }
 
-    return now < oneHourLater
+    return filtered
   }
 
   // Ordenar sugerencias para mostrar primero las aceptadas dentro de la ventana de tiempo
-  const sortedSuggestions = [...suggestions].sort((a, b) => {
-    const aInWindow = a.accepted && isWithinTimeWindow(a.id)
-    const bInWindow = b.accepted && isWithinTimeWindow(b.id)
+  const sortedSuggestions = [...suggestions]
+    .filter((s) => !hiddenSuggestions.includes(s.id))
+    .sort((a, b) => {
+      // Primero las aceptadas dentro de la ventana de tiempo
+      const aInWindow = a.accepted && isWithinTimeWindow(a)
+      const bInWindow = b.accepted && isWithinTimeWindow(b)
 
-    if (aInWindow && !bInWindow) return -1
-    if (!aInWindow && bInWindow) return 1
+      if (aInWindow && !bInWindow) return -1
+      if (!aInWindow && bInWindow) return 1
 
-    // Si ambas están en la ventana o ambas no lo están, ordenar por fecha
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  })
+      // Luego por fecha (más recientes primero)
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
 
   // Filtrar sugerencias de Spotify
-  const spotifySuggestions = suggestions.filter((suggestion) => suggestion.spotify_link)
+  const spotifySuggestions = suggestions.filter(
+    (suggestion) => suggestion.spotify_link && !hiddenSuggestions.includes(suggestion.id),
+  )
+
+  // Verificar si hay sugerencias antiguas
+  const hasOlderSuggestions = suggestions.some((s) => !hiddenSuggestions.includes(s.id) && isOlderThanOneDay(s))
+
+  // Filtrar sugerencias según la pestaña activa y criterios
+  const filteredSuggestions = filterSuggestions(sortedSuggestions)
 
   if (loading) {
     return (
@@ -307,18 +458,34 @@ export default function SuggestionsPage() {
                 <span className="sr-only">Información</span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              <p className="max-w-xs">
-                Las sugerencias aceptadas aparecen destacadas durante 1 hora. Después, se muestran en la pestaña
-                "Aceptadas".
-              </p>
+            <TooltipContent className="max-w-md p-4">
+              <div className="space-y-2">
+                <p className="font-medium">Información sobre las pestañas:</p>
+                <div className="space-y-1">
+                  <p>
+                    <strong>Pendientes:</strong> Muestra las sugerencias entrantes pendientes. Tienen un tiempo porque
+                    una vez aceptadas, se destacan durante una hora para facilitar su reproducción.
+                  </p>
+                  <p>
+                    <strong>Aceptadas:</strong> Muestra únicamente las sugerencias que has aceptado para reproducir.
+                  </p>
+                  <p>
+                    <strong>Spotify:</strong> Si el público sugiere un link de Spotify, se muestra en esta pestaña con
+                    un reproductor integrado para previsualizar la canción.
+                  </p>
+                  <p>
+                    <strong>Todas:</strong> Se muestran todas las sugerencias, tanto entrantes como aceptadas, para
+                    tener una visión completa de las peticiones.
+                  </p>
+                </div>
+              </div>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
 
       <Tabs defaultValue="pending" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="w-full max-w-[100%] flex-nowrap overflow-x-auto sm:w-auto">
           <TabsTrigger value="pending">Pendientes</TabsTrigger>
           <TabsTrigger value="accepted">Aceptadas</TabsTrigger>
           <TabsTrigger value="spotify">Spotify</TabsTrigger>
@@ -329,26 +496,26 @@ export default function SuggestionsPage() {
 
         {/* Pestaña de Pendientes */}
         <TabsContent value="pending" className="mt-4">
-          {sortedSuggestions.length === 0 ? (
+          {filteredSuggestions.length === 0 ? (
             <Card>
               <CardHeader>
                 <CardTitle>No hay sugerencias pendientes</CardTitle>
-                <CardDescription>Las sugerencias pendientes aparecerán aquí</CardDescription>
+                <CardDescription>
+                  Las sugerencias pendientes aparecerán aquí para que puedas revisarlas y decidir si las reproduces
+                </CardDescription>
               </CardHeader>
             </Card>
           ) : (
             <div className="grid gap-4">
-              {sortedSuggestions.map((suggestion) => (
+              {filteredSuggestions.map((suggestion) => (
                 <Card
                   key={suggestion.id}
                   className={
-                    suggestion.accepted && isWithinTimeWindow(suggestion.id)
-                      ? "border-2 border-primary bg-accent/30"
-                      : ""
+                    suggestion.accepted && isWithinTimeWindow(suggestion) ? "border-2 border-primary bg-accent/30" : ""
                   }
                 >
                   <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div className="flex items-center gap-2">
                         {getSuggestionIcon(suggestion)}
                         <CardTitle className="text-lg">{suggestion.clients?.name || "Cliente"}</CardTitle>
@@ -357,10 +524,10 @@ export default function SuggestionsPage() {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2">
-                        {suggestion.accepted && isWithinTimeWindow(suggestion.id) && (
+                        {suggestion.accepted && isWithinTimeWindow(suggestion) && (
                           <div className="flex items-center gap-1 text-sm font-medium text-primary">
                             <Clock className="h-4 w-4" />
-                            <span>{getRemainingTime(suggestion.id)}</span>
+                            <span>{getRemainingTime(suggestion)}</span>
                           </div>
                         )}
                         <Badge variant="secondary">{getSuggestionType(suggestion)}</Badge>
@@ -372,15 +539,35 @@ export default function SuggestionsPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-sm">{getSuggestionContent(suggestion)}</div>
+                    <div className="text-sm break-words">{getSuggestionContent(suggestion)}</div>
                   </CardContent>
                   {!suggestion.accepted && (
-                    <CardFooter className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => handleReject(suggestion.id)}>
-                        <X className="mr-2 h-4 w-4" />
-                        Rechazar
+                    <CardFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleReject(suggestion.id)}
+                        className="w-full sm:w-auto"
+                        disabled={processingRefund === suggestion.id}
+                      >
+                        {processingRefund === suggestion.id ? (
+                          <>
+                            <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
+                            Procesando...
+                          </>
+                        ) : (
+                          <>
+                            <X className="mr-2 h-4 w-4" />
+                            Rechazar
+                          </>
+                        )}
                       </Button>
-                      <Button size="sm" onClick={() => handleAccept(suggestion.id)}>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAccept(suggestion.id)}
+                        className="w-full sm:w-auto"
+                        disabled={processingRefund === suggestion.id}
+                      >
                         <Check className="mr-2 h-4 w-4" />
                         Aceptar
                       </Button>
@@ -394,26 +581,24 @@ export default function SuggestionsPage() {
 
         {/* Pestaña de Aceptadas */}
         <TabsContent value="accepted" className="mt-4">
-          {sortedSuggestions.length === 0 ? (
+          {filteredSuggestions.length === 0 ? (
             <Card>
               <CardHeader>
                 <CardTitle>No hay sugerencias aceptadas</CardTitle>
-                <CardDescription>Las sugerencias aceptadas aparecerán aquí</CardDescription>
+                <CardDescription>
+                  Aquí se mostrarán las sugerencias que hayas aceptado para reproducir durante tu sesión
+                </CardDescription>
               </CardHeader>
             </Card>
           ) : (
             <div className="grid gap-4">
-              {sortedSuggestions.map((suggestion) => (
+              {filteredSuggestions.map((suggestion) => (
                 <Card
                   key={suggestion.id}
-                  className={
-                    suggestion.accepted && isWithinTimeWindow(suggestion.id)
-                      ? "border-2 border-primary bg-accent/30"
-                      : ""
-                  }
+                  className={isWithinTimeWindow(suggestion) ? "border-2 border-primary bg-accent/30" : "bg-muted/30"}
                 >
                   <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div className="flex items-center gap-2">
                         {getSuggestionIcon(suggestion)}
                         <CardTitle className="text-lg">{suggestion.clients?.name || "Cliente"}</CardTitle>
@@ -422,10 +607,10 @@ export default function SuggestionsPage() {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2">
-                        {suggestion.accepted && isWithinTimeWindow(suggestion.id) && (
+                        {isWithinTimeWindow(suggestion) && (
                           <div className="flex items-center gap-1 text-sm font-medium text-primary">
                             <Clock className="h-4 w-4" />
-                            <span>{getRemainingTime(suggestion.id)}</span>
+                            <span>{getRemainingTime(suggestion)}</span>
                           </div>
                         )}
                         <Badge variant="secondary">{getSuggestionType(suggestion)}</Badge>
@@ -437,7 +622,7 @@ export default function SuggestionsPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-sm">{getSuggestionContent(suggestion)}</div>
+                    <div className="text-sm break-words">{getSuggestionContent(suggestion)}</div>
                   </CardContent>
                 </Card>
               ))}
@@ -451,7 +636,10 @@ export default function SuggestionsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>No hay sugerencias de Spotify</CardTitle>
-                <CardDescription>Las sugerencias con enlaces de Spotify aparecerán aquí</CardDescription>
+                <CardDescription>
+                  Aquí se mostrarán las sugerencias con enlaces de Spotify, permitiéndote previsualizar las canciones
+                  antes de reproducirlas
+                </CardDescription>
               </CardHeader>
             </Card>
           ) : (
@@ -462,13 +650,13 @@ export default function SuggestionsPage() {
                   <Card
                     key={suggestion.id}
                     className={
-                      suggestion.accepted && isWithinTimeWindow(suggestion.id)
+                      suggestion.accepted && isWithinTimeWindow(suggestion)
                         ? "border-2 border-primary bg-accent/30"
                         : ""
                     }
                   >
                     <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <LinkIcon className="h-5 w-5 text-green-500" />
                           <CardTitle className="text-lg">{suggestion.clients?.name || "Cliente"}</CardTitle>
@@ -477,10 +665,10 @@ export default function SuggestionsPage() {
                           </Badge>
                         </div>
                         <div className="flex items-center gap-2">
-                          {suggestion.accepted && isWithinTimeWindow(suggestion.id) && (
+                          {suggestion.accepted && isWithinTimeWindow(suggestion) && (
                             <div className="flex items-center gap-1 text-sm font-medium text-primary">
                               <Clock className="h-4 w-4" />
-                              <span>{getRemainingTime(suggestion.id)}</span>
+                              <span>{getRemainingTime(suggestion)}</span>
                             </div>
                           )}
                           <Badge className="bg-green-600 hover:bg-green-700">Spotify</Badge>
@@ -492,13 +680,13 @@ export default function SuggestionsPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="text-sm flex items-center">
+                      <div className="text-sm flex items-center break-words">
                         <span className="truncate">{suggestion.spotify_link}</span>
                         <a
                           href={suggestion.spotify_link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="ml-2 text-green-500 hover:text-green-600"
+                          className="ml-2 text-green-500 hover:text-green-600 shrink-0"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </a>
@@ -518,12 +706,32 @@ export default function SuggestionsPage() {
                       )}
                     </CardContent>
                     {!suggestion.accepted && (
-                      <CardFooter className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => handleReject(suggestion.id)}>
-                          <X className="mr-2 h-4 w-4" />
-                          Rechazar
+                      <CardFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleReject(suggestion.id)}
+                          className="w-full sm:w-auto"
+                          disabled={processingRefund === suggestion.id}
+                        >
+                          {processingRefund === suggestion.id ? (
+                            <>
+                              <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
+                              Procesando...
+                            </>
+                          ) : (
+                            <>
+                              <X className="mr-2 h-4 w-4" />
+                              Rechazar
+                            </>
+                          )}
                         </Button>
-                        <Button size="sm" onClick={() => handleAccept(suggestion.id)}>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAccept(suggestion.id)}
+                          className="w-full sm:w-auto"
+                          disabled={processingRefund === suggestion.id}
+                        >
                           <Check className="mr-2 h-4 w-4" />
                           Aceptar
                         </Button>
@@ -538,26 +746,26 @@ export default function SuggestionsPage() {
 
         {/* Pestaña de Todas */}
         <TabsContent value="all" className="mt-4">
-          {sortedSuggestions.length === 0 ? (
+          {filteredSuggestions.length === 0 ? (
             <Card>
               <CardHeader>
                 <CardTitle>No hay sugerencias</CardTitle>
-                <CardDescription>Las sugerencias aparecerán aquí</CardDescription>
+                <CardDescription>
+                  Esta vista te permite ver todas tus sugerencias en un solo lugar, tanto pendientes como aceptadas
+                </CardDescription>
               </CardHeader>
             </Card>
           ) : (
             <div className="grid gap-4">
-              {sortedSuggestions.map((suggestion) => (
+              {filteredSuggestions.map((suggestion) => (
                 <Card
                   key={suggestion.id}
                   className={
-                    suggestion.accepted && isWithinTimeWindow(suggestion.id)
-                      ? "border-2 border-primary bg-accent/30"
-                      : ""
+                    suggestion.accepted && isWithinTimeWindow(suggestion) ? "border-2 border-primary bg-accent/30" : ""
                   }
                 >
                   <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div className="flex items-center gap-2">
                         {getSuggestionIcon(suggestion)}
                         <CardTitle className="text-lg">{suggestion.clients?.name || "Cliente"}</CardTitle>
@@ -566,10 +774,10 @@ export default function SuggestionsPage() {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2">
-                        {suggestion.accepted && isWithinTimeWindow(suggestion.id) && (
+                        {suggestion.accepted && isWithinTimeWindow(suggestion) && (
                           <div className="flex items-center gap-1 text-sm font-medium text-primary">
                             <Clock className="h-4 w-4" />
-                            <span>{getRemainingTime(suggestion.id)}</span>
+                            <span>{getRemainingTime(suggestion)}</span>
                           </div>
                         )}
                         {suggestion.spotify_link ? (
@@ -585,7 +793,7 @@ export default function SuggestionsPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-sm">
+                    <div className="text-sm break-words">
                       {suggestion.spotify_link ? (
                         <div className="flex flex-col space-y-2">
                           <div className="flex items-center">
@@ -594,7 +802,7 @@ export default function SuggestionsPage() {
                               href={suggestion.spotify_link}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="ml-2 text-green-500 hover:text-green-600"
+                              className="ml-2 text-green-500 hover:text-green-600 shrink-0"
                             >
                               <ExternalLink className="h-4 w-4" />
                             </a>
@@ -613,25 +821,121 @@ export default function SuggestionsPage() {
                       )}
                     </div>
                   </CardContent>
-                  {!suggestion.accepted && (
-                    <CardFooter className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => handleReject(suggestion.id)}>
-                        <X className="mr-2 h-4 w-4" />
-                        Rechazar
+                  <CardFooter className="flex flex-col sm:flex-row justify-between gap-2">
+                    {!suggestion.accepted ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleReject(suggestion.id)}
+                          className="w-full sm:w-auto"
+                          disabled={processingRefund === suggestion.id}
+                        >
+                          {processingRefund === suggestion.id ? (
+                            <>
+                              <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
+                              Procesando...
+                            </>
+                          ) : (
+                            <>
+                              <X className="mr-2 h-4 w-4" />
+                              Rechazar
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAccept(suggestion.id)}
+                          className="w-full sm:w-auto"
+                          disabled={processingRefund === suggestion.id}
+                        >
+                          <Check className="mr-2 h-4 w-4" />
+                          Aceptar
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleHideSuggestion(suggestion.id)}
+                        className="ml-auto"
+                      >
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        ¡Listo!
                       </Button>
-                      <Button size="sm" onClick={() => handleAccept(suggestion.id)}>
-                        <Check className="mr-2 h-4 w-4" />
-                        Aceptar
-                      </Button>
-                    </CardFooter>
-                  )}
+                    )}
+                  </CardFooter>
                 </Card>
               ))}
+
+              {/* Botón para mostrar sugerencias antiguas */}
+              {activeTab === "all" && hasOlderSuggestions && !showOlderSuggestions && (
+                <Button variant="outline" onClick={() => setShowOlderSuggestions(true)} className="mt-2">
+                  Mostrar sugerencias anteriores
+                </Button>
+              )}
             </div>
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Diálogo de confirmación de reembolso */}
+      <Dialog
+        open={confirmRefundDialog.open}
+        onOpenChange={(open) => setConfirmRefundDialog((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Confirmar reembolso
+            </DialogTitle>
+            <DialogDescription>
+              Estás a punto de rechazar una sugerencia con un pago aprobado. Esto procesará un reembolso automático al
+              cliente.
+            </DialogDescription>
+          </DialogHeader>
+
+          {confirmRefundDialog.paymentInfo && (
+            <div className="py-4">
+              <div className="rounded-md bg-muted p-4">
+                <h3 className="font-medium mb-2">Detalles del reembolso</h3>
+                <div className="flex justify-between text-sm">
+                  <span>Monto:</span>
+                  <span>{formatCurrency(confirmRefundDialog.paymentInfo.amount)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Fecha del pago:</span>
+                  <span>{new Date(confirmRefundDialog.paymentInfo.created_at).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm mt-2">
+                  <span>ID de referencia:</span>
+                  <span className="font-mono text-xs">
+                    {confirmRefundDialog.paymentInfo.mercadopago_id.substring(0, 10)}...
+                  </span>
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm text-muted-foreground">
+                El reembolso se procesará a través de Mercado Pago y puede tardar hasta 15 días hábiles en reflejarse en
+                la cuenta del cliente, dependiendo de su método de pago.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmRefundDialog({ open: false, suggestionId: null, paymentInfo: null })}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmRefund}>
+              Confirmar reembolso
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
-

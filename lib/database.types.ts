@@ -168,7 +168,32 @@ export interface Database {
           processed_at?: string | null
         }
       }
+      bank_details: {
+        Row: {
+          id: string
+          withdrawal_id: string
+          dj_id: string
+          bank_name: string
+          account_number: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          withdrawal_id: string
+          dj_id: string
+          bank_name: string
+          account_number: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          withdrawal_id?: string
+          dj_id?: string
+          bank_name?: string
+          account_number?: string
+          created_at?: string
+        }
+      }
     }
   }
 }
-

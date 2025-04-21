@@ -23,7 +23,6 @@ export default function PaymentPage() {
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string | null>(null)
   const [djDetails, setDjDetails] = useState<any>(null)
   const [recommendationDetails, setRecommendationDetails] = useState<any>(null)
   const [tipAmount, setTipAmount] = useState<number | "">("")
@@ -97,7 +96,6 @@ export default function PaymentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    setDebugInfo(null)
     setPaymentUrl(null)
 
     // Usar el mayor entre 10 pesos y el mínimo del DJ
@@ -134,9 +132,6 @@ export default function PaymentPage() {
       if (!response.ok) {
         throw new Error(data.error || "Error creating payment")
       }
-
-      // Guardar información de depuración
-      setDebugInfo(JSON.stringify(data, null, 2))
 
       if (!data.init_point) {
         throw new Error("No se recibió un punto de inicio de pago válido")
@@ -219,13 +214,6 @@ export default function PaymentPage() {
               </div>
               <CardDescription>{error}</CardDescription>
             </CardHeader>
-            {debugInfo && (
-              <CardContent>
-                <div className="bg-muted p-4 rounded-md overflow-auto max-h-60">
-                  <pre className="text-xs">{debugInfo}</pre>
-                </div>
-              </CardContent>
-            )}
             <CardFooter>
               <Button className="w-full" onClick={handleGoBack}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -292,13 +280,6 @@ export default function PaymentPage() {
                     </div>
                   )}
                 </div>
-
-                {debugInfo && (
-                  <div className="mt-4 p-4 bg-muted rounded-md overflow-auto max-h-60">
-                    <p className="text-xs font-mono mb-2">Debug Info:</p>
-                    <pre className="text-xs font-mono">{debugInfo}</pre>
-                  </div>
-                )}
               </CardContent>
               <CardFooter className="flex flex-col gap-2">
                 <Button type="submit" className="w-full" disabled={processing}>
@@ -340,13 +321,6 @@ export default function PaymentPage() {
                     Tu pago ha sido creado. Haz clic en el botón de abajo para continuar con el pago en Mercado Pago.
                   </p>
                 </div>
-
-                {debugInfo && (
-                  <div className="mt-4 p-4 bg-muted rounded-md overflow-auto max-h-60">
-                    <p className="text-xs font-mono mb-2">Debug Info:</p>
-                    <pre className="text-xs font-mono">{debugInfo}</pre>
-                  </div>
-                )}
               </CardContent>
               <CardFooter className="flex flex-col gap-2">
                 <Button
@@ -374,4 +348,3 @@ export default function PaymentPage() {
     </div>
   )
 }
-
