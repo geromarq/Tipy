@@ -52,6 +52,15 @@ export default function SuggestionsPage() {
     suggestionId: null,
     paymentInfo: null,
   })
+  const [refundStatus, setRefundStatus] = useState<{
+    suggestionId: string | null
+    status: "success" | "error" | "processing" | null
+    message: string | null
+  }>({
+    suggestionId: null,
+    status: null,
+    message: null,
+  })
 
   // Actualizar el tiempo actual cada segundo para los temporizadores
   useEffect(() => {
@@ -218,6 +227,11 @@ export default function SuggestionsPage() {
     const paymentInfo = confirmRefundDialog.paymentInfo
 
     setProcessingRefund(suggestionId)
+    setRefundStatus({
+      suggestionId,
+      status: "processing",
+      message: "Procesando reembolso...",
+    })
     setConfirmRefundDialog({ open: false, suggestionId: null, paymentInfo: null })
 
     try {
@@ -242,19 +256,41 @@ export default function SuggestionsPage() {
       // Actualizar la lista de sugerencias
       setSuggestions(suggestions.filter((suggestion) => suggestion.id !== suggestionId))
 
+      setRefundStatus({
+        suggestionId,
+        status: "success",
+        message: "Reembolso procesado correctamente",
+      })
+
       toast({
         title: "Reembolso procesado",
         description: "La sugerencia ha sido rechazada y el pago reembolsado",
       })
+
+      // Limpiar el estado después de 5 segundos
+      setTimeout(() => {
+        setRefundStatus({
+          suggestionId: null,
+          status: null,
+          message: null,
+        })
+      }, 5000)
     } catch (err: any) {
       console.error("Error al procesar el reembolso:", err)
+
+      setRefundStatus({
+        suggestionId,
+        status: "error",
+        message: err.message || "Error al procesar el reembolso",
+      })
+
       toast({
         title: "Error",
         description: err.message || "No se pudo procesar el reembolso",
         variant: "destructive",
       })
 
-      // Intentar eliminar la sugerencia de todos modos
+      // Intentar eliminar la sugerencia de todos modos después de un error
       try {
         await deleteRecommendation(suggestionId)
       } catch (deleteErr) {
@@ -573,6 +609,19 @@ export default function SuggestionsPage() {
                       </Button>
                     </CardFooter>
                   )}
+                  {refundStatus.suggestionId === suggestion.id && (
+                    <div
+                      className={`mt-2 p-2 rounded-md text-sm ${
+                        refundStatus.status === "success"
+                          ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300"
+                          : refundStatus.status === "error"
+                            ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
+                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
+                      }`}
+                    >
+                      {refundStatus.message}
+                    </div>
+                  )}
                 </Card>
               ))}
             </div>
@@ -737,6 +786,19 @@ export default function SuggestionsPage() {
                         </Button>
                       </CardFooter>
                     )}
+                    {refundStatus.suggestionId === suggestion.id && (
+                      <div
+                        className={`mt-2 p-2 rounded-md text-sm ${
+                          refundStatus.status === "success"
+                            ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300"
+                            : refundStatus.status === "error"
+                              ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
+                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
+                        }`}
+                      >
+                        {refundStatus.message}
+                      </div>
+                    )}
                   </Card>
                 )
               })}
@@ -865,6 +927,19 @@ export default function SuggestionsPage() {
                       </Button>
                     )}
                   </CardFooter>
+                  {refundStatus.suggestionId === suggestion.id && (
+                    <div
+                      className={`mt-2 p-2 rounded-md text-sm ${
+                        refundStatus.status === "success"
+                          ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300"
+                          : refundStatus.status === "error"
+                            ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
+                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
+                      }`}
+                    >
+                      {refundStatus.message}
+                    </div>
+                  )}
                 </Card>
               ))}
 

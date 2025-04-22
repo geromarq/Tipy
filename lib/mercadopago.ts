@@ -119,7 +119,7 @@ export async function getPaymentStatus(paymentId: string) {
   }
 }
 
-// Nueva función para procesar reembolsos
+// Función corregida para procesar reembolsos con Checkout Pro
 export async function refundPayment(paymentId: string, amount?: number) {
   try {
     // Verificar que el token de acceso esté disponible

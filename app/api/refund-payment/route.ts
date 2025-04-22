@@ -16,6 +16,7 @@ export async function POST(request: Request) {
 
     // Si tenemos mercadopagoId, necesitamos obtener el ID de pago real de Mercado Pago
     let mpPaymentId = paymentId
+    let realPaymentId = null
 
     if (!mpPaymentId && mercadopagoId) {
       // Buscar el pago por mercadopago_id
@@ -30,21 +31,69 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 })
       }
 
-      // Obtener el estado del pago desde Mercado Pago para obtener el ID real
-      try {
-        const paymentDetails = await fetch(`/api/get-payment-status?reference=${mercadopagoId}`).then((res) =>
-          res.json(),
-        )
-        if (paymentDetails && paymentDetails.id) {
-          mpPaymentId = paymentDetails.id
-        } else {
-          throw new Error("No se pudo obtener el ID de pago de Mercado Pago")
+      // Verificar si ya tenemos el ID real de Mercado Pago almacenado
+      if (paymentData.mercadopago_payment_id) {
+        mpPaymentId = paymentData.mercadopago_payment_id
+        realPaymentId = mpPaymentId
+      } else {
+        // Si no tenemos el ID real, necesitamos buscarlo en Mercado Pago
+        try {
+          // Primero, intentamos obtener el ID de pago desde nuestra API de webhook
+          const { data: webhookData, error: webhookError } = await supabase
+            .from("mercadopago_webhooks")
+            .select("payment_id")
+            .eq("external_reference", mercadopagoId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single()
+
+          if (!webhookError && webhookData && webhookData.payment_id) {
+            mpPaymentId = webhookData.payment_id
+            realPaymentId = mpPaymentId
+          } else {
+            // Si no encontramos el ID en nuestra base de datos, hacemos una consulta directa a Mercado Pago
+            // Esto requiere que tengamos acceso a la API de búsqueda de pagos
+            const searchResponse = await fetch(
+              `https://api.mercadopago.com/v1/payments/search?external_reference=${mercadopagoId}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+                  "Content-Type": "application/json",
+                },
+              },
+            )
+
+            if (searchResponse.ok) {
+              const searchData = await searchResponse.json()
+              if (searchData.results && searchData.results.length > 0) {
+                mpPaymentId = searchData.results[0].id
+                realPaymentId = mpPaymentId
+
+                // Guardar el ID real para futuras referencias
+                await supabase
+                  .from("payments")
+                  .update({ mercadopago_payment_id: mpPaymentId })
+                  .eq("mercadopago_id", mercadopagoId)
+              } else {
+                throw new Error("No se encontraron pagos con esta referencia externa")
+              }
+            } else {
+              const errorText = await searchResponse.text()
+              throw new Error(`Error al buscar el pago: ${errorText}`)
+            }
+          }
+        } catch (error) {
+          console.error("Error al obtener el ID de pago real:", error)
+          return NextResponse.json({ error: "No se pudo obtener el ID de pago real de Mercado Pago" }, { status: 500 })
         }
-      } catch (error) {
-        console.error("Error al obtener detalles del pago:", error)
-        return NextResponse.json({ error: "No se pudo obtener el ID de pago de Mercado Pago" }, { status: 500 })
       }
     }
+
+    if (!mpPaymentId) {
+      return NextResponse.json({ error: "No se pudo determinar el ID de pago" }, { status: 400 })
+    }
+
+    console.log(`Procesando reembolso para pago con ID: ${mpPaymentId}`)
 
     // Procesar el reembolso
     try {
@@ -53,7 +102,10 @@ export async function POST(request: Request) {
       // Actualizar el estado del pago en la base de datos
       const { error: updateError } = await supabase
         .from("payments")
-        .update({ status: "refunded" })
+        .update({
+          status: "refunded",
+          mercadopago_payment_id: realPaymentId || mpPaymentId, // Guardar el ID real si lo obtuvimos
+        })
         .eq("mercadopago_id", mercadopagoId || refundResult.payment_id)
 
       if (updateError) {

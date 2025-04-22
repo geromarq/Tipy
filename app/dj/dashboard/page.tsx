@@ -4,10 +4,11 @@ import { useState, useEffect } from "react"
 import { useSupabase } from "@/lib/supabase-provider"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
-import { Music, DollarSign, Clock, QrCode, ArrowUp, ArrowDown } from "lucide-react"
+import { Music, DollarSign, Clock, QrCode } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { Badge } from "@/components/ui/badge"
 
 export default function DashboardPage() {
   const { supabase, session } = useSupabase()
@@ -19,8 +20,8 @@ export default function DashboardPage() {
     todaySuggestionsCount: 0,
     totalEarnings: 0,
     activeQrCodesCount: 0,
-    potentialEarningsWeek: 0,
   })
+  const [qrEarnings, setQrEarnings] = useState<any[]>([])
   const [activityData, setActivityData] = useState<any[]>([])
   const [timeRange, setTimeRange] = useState<"12h" | "24h">("12h")
 
@@ -170,27 +171,58 @@ export default function DashboardPage() {
         .eq("dj_id", session.user.id)
         .eq("active", true)
 
-      // 2.5 Posibles ganancias de la última semana (todas las sugerencias, aceptadas o no)
+      // 2.5 Ganancias por QR activo en la última semana
       const oneWeekAgo = new Date()
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
 
-      const { data: weekSuggestions } = await supabase
-        .from("recommendations")
-        .select("*, payments(*)")
+      // Obtener todos los QR activos
+      const { data: activeQrCodes } = await supabase
+        .from("qr_codes")
+        .select("id, code")
         .eq("dj_id", session.user.id)
-        .gte("created_at", oneWeekAgo.toISOString())
+        .eq("active", true)
 
-      // Calcular el total de todas las sugerencias (pagadas o no)
-      const potentialEarningsWeek =
-        weekSuggestions?.reduce((sum, suggestion) => {
-          // Sumar todos los pagos asociados a esta sugerencia
-          const suggestionTotal =
-            suggestion.payments?.reduce((paymentSum: number, payment: any) => {
-              return paymentSum + (payment.amount || 0)
-            }, 0) || 0
+      if (activeQrCodes && activeQrCodes.length > 0) {
+        // Para cada QR activo, obtener las recomendaciones y pagos asociados
+        const qrEarningsPromises = activeQrCodes.map(async (qr) => {
+          // Obtener recomendaciones que vinieron de este QR
+          const { data: recommendations } = await supabase
+            .from("recommendations")
+            .select("id, created_at")
+            .eq("dj_id", session.user.id)
+            .gte("created_at", oneWeekAgo.toISOString())
+            .ilike("metadata->qr_code", qr.code)
 
-          return sum + suggestionTotal
-        }, 0) || 0
+          let totalAmount = 0
+          let count = 0
+
+          if (recommendations && recommendations.length > 0) {
+            // Obtener los IDs de las recomendaciones
+            const recommendationIds = recommendations.map((rec) => rec.id)
+
+            // Obtener los pagos asociados a estas recomendaciones
+            const { data: paymentsData } = await supabase
+              .from("payments")
+              .select("amount")
+              .eq("status", "approved")
+              .in("recommendation_id", recommendationIds)
+
+            if (paymentsData && paymentsData.length > 0) {
+              totalAmount = paymentsData.reduce((sum, payment) => sum + payment.amount, 0)
+              count = paymentsData.length
+            }
+          }
+
+          return {
+            code: qr.code,
+            earnings: totalAmount,
+            count: count,
+          }
+        })
+
+        const qrEarningsResults = await Promise.all(qrEarningsPromises)
+        setQrEarnings(qrEarningsResults.filter((qr) => qr.count > 0))
+      }
 
       // 3. Actualizar el estado con todas las estadísticas
       setStats({
@@ -198,7 +230,6 @@ export default function DashboardPage() {
         todaySuggestionsCount: todaySuggestionsCount || 0,
         totalEarnings,
         activeQrCodesCount: activeQrCodesCount || 0,
-        potentialEarningsWeek,
       })
     } catch (err) {
       console.error("Error al cargar los datos del dashboard:", err)
@@ -379,48 +410,38 @@ export default function DashboardPage() {
 
         <Card className="col-span-3">
           <CardHeader>
-            <CardTitle>Posibles ganancias (última semana)</CardTitle>
+            <CardTitle>Ganancias por QR (última semana)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Total de propinas:</span>
-                <span className="text-2xl font-bold">{formatCurrency(stats.potentialEarningsWeek)}</span>
+            {qrEarnings.length > 0 ? (
+              <div className="space-y-4">
+                {qrEarnings.map((qr) => (
+                  <div key={qr.code} className="flex flex-col space-y-2 p-3 border rounded-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <QrCode className="h-4 w-4 text-primary" />
+                        <span className="font-medium">{qr.code}</span>
+                        <Badge variant="outline" className="ml-2">
+                          {qr.count} {qr.count === 1 ? "propina" : "propinas"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Ganancias:</span>
+                      <span className="font-bold">{formatCurrency(qr.earnings)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Después de comisión (30%):</span>
+                      <span className="font-semibold">{formatCurrency(qr.earnings * 0.7)}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Después de comisión (30%):</span>
-                <span className="text-lg font-semibold">{formatCurrency(stats.potentialEarningsWeek * 0.7)}</span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Comparado con ganancias totales:</span>
-                <div className="flex items-center">
-                  {stats.potentialEarningsWeek > stats.totalEarnings ? (
-                    <>
-                      <ArrowUp className="h-4 w-4 text-green-500 mr-1" />
-                      <span className="text-green-500">
-                        {formatCurrency(stats.potentialEarningsWeek - stats.totalEarnings)}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <ArrowDown className="h-4 w-4 text-red-500 mr-1" />
-                      <span className="text-red-500">
-                        {formatCurrency(stats.totalEarnings - stats.potentialEarningsWeek)}
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="text-xs text-muted-foreground mt-4">
-                <p>
-                  Este valor representa todas las propinas recibidas en la última semana, independientemente de si las
-                  sugerencias fueron aceptadas o rechazadas.
-                </p>
-              </div>
-            </div>
+            ) : (
+              <p className="text-sm text-muted-foreground py-10 text-center">
+                No hay ganancias por QR para mostrar en la última semana.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

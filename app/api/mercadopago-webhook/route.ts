@@ -72,10 +72,54 @@ export async function POST(request: Request) {
 
       console.log(`Actualizando pago ${externalReference} a estado: ${status}`)
 
-      // Actualizar el estado del pago en la base de datos
+      // Guardar la información del webhook para referencia futura
       const supabase = createServerSupabaseClient()
 
-      const { error } = await supabase.from("payments").update({ status }).eq("mercadopago_id", externalReference)
+      // Crear la tabla si no existe
+      try {
+        const { error: tableError } = await supabase.rpc("create_mercadopago_webhooks_if_not_exists")
+        if (tableError) {
+          console.error("Error al verificar/crear tabla de webhooks:", tableError)
+        }
+      } catch (e) {
+        console.error("Error al llamar al procedimiento:", e)
+        // Intentar crear la tabla directamente si el RPC falla
+        try {
+          await supabase.query(`
+            CREATE TABLE IF NOT EXISTS public.mercadopago_webhooks (
+              id SERIAL PRIMARY KEY,
+              payment_id TEXT NOT NULL,
+              external_reference TEXT NOT NULL,
+              status TEXT NOT NULL,
+              webhook_data JSONB NOT NULL,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+          `)
+        } catch (tableError) {
+          console.error("Error al crear tabla directamente:", tableError)
+        }
+      }
+
+      // Guardar el webhook
+      const { error: webhookError } = await supabase.from("mercadopago_webhooks").insert({
+        payment_id: paymentId,
+        external_reference: externalReference,
+        status: status,
+        webhook_data: body,
+      })
+
+      if (webhookError) {
+        console.error("Error al guardar el webhook:", webhookError)
+      }
+
+      // Actualizar el estado del pago en la base de datos
+      const { error } = await supabase
+        .from("payments")
+        .update({
+          status,
+          mercadopago_payment_id: paymentId, // Guardar el ID real de Mercado Pago
+        })
+        .eq("mercadopago_id", externalReference)
 
       if (error) {
         console.error("Error al actualizar el pago:", error)
