@@ -7,7 +7,7 @@ import { formatCurrency } from "@/lib/utils"
 import { Music, DollarSign, Clock, QrCode } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import { Badge } from "@/components/ui/badge"
 
 export default function DashboardPage() {
@@ -255,7 +255,7 @@ export default function DashboardPage() {
       // Obtener todas las sugerencias en el rango de tiempo
       const { data: suggestions, error } = await supabase
         .from("recommendations")
-        .select("created_at")
+        .select("created_at, status")
         .eq("dj_id", session.user.id)
         .gte("created_at", startDate.toISOString())
         .lte("created_at", endDate.toISOString())
@@ -267,7 +267,7 @@ export default function DashboardPage() {
       }
 
       // Agrupar por hora para crear los datos del gráfico
-      const hourlyData: Record<string, number> = {}
+      const hourlyData: Record<string, { total: number; rejected: number }> = {}
 
       // Inicializar todas las horas con 0
       const hourCount = timeRange === "12h" ? 12 : 24
@@ -275,7 +275,7 @@ export default function DashboardPage() {
         const hourDate = new Date(endDate)
         hourDate.setHours(endDate.getHours() - (hourCount - 1) + i)
         const hourKey = hourDate.toISOString().substring(0, 13) // YYYY-MM-DDTHH
-        hourlyData[hourKey] = 0
+        hourlyData[hourKey] = { total: 0, rejected: 0 }
       }
 
       // Contar sugerencias por hora
@@ -284,17 +284,21 @@ export default function DashboardPage() {
         const hourKey = date.toISOString().substring(0, 13) // YYYY-MM-DDTHH
 
         if (hourlyData[hourKey] !== undefined) {
-          hourlyData[hourKey]++
+          hourlyData[hourKey].total++
+          if (suggestion.status === "rejected") {
+            hourlyData[hourKey].rejected++
+          }
         }
       })
 
       // Convertir a formato para el gráfico
       const chartData = Object.entries(hourlyData)
-        .map(([hour, count]) => {
+        .map(([hour, counts]) => {
           const date = new Date(hour + ":00:00Z")
           return {
             hour: date.getHours() + ":00",
-            count,
+            count: counts.total,
+            rejected: counts.rejected,
             date, // Para ordenar
           }
         })
@@ -393,10 +397,22 @@ export default function DashboardPage() {
                     <XAxis dataKey="hour" tick={{ fontSize: 12 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                     <Tooltip
-                      formatter={(value) => [`${value} sugerencias`, "Cantidad"]}
+                      formatter={(value, name) => {
+                        if (name === "count") return [`${value} sugerencias`, "Total"]
+                        if (name === "rejected") return [`${value} sugerencias`, "Rechazadas"]
+                        return [value, name]
+                      }}
                       labelFormatter={(label) => `Hora: ${label}`}
                     />
-                    <Line type="monotone" dataKey="count" stroke="#7A2D80" activeDot={{ r: 8 }} name="Sugerencias" />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      stroke="#7A2D80"
+                      activeDot={{ r: 8 }}
+                      name="Total Sugerencias"
+                    />
+                    <Line type="monotone" dataKey="rejected" stroke="#FF5252" activeDot={{ r: 6 }} name="Rechazadas" />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
