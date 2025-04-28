@@ -57,6 +57,7 @@ export async function createPaymentPreference(
         Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
         "X-Idempotency-Key": externalReference, // Prevenir duplicados
         "User-Agent": "Tipy/1.0", // Identificar la aplicación
+        Accept: "application/json", // Asegurar que aceptamos JSON
       },
       body: JSON.stringify(preferenceData),
     })
@@ -76,6 +77,11 @@ export async function createPaymentPreference(
     if (!data.id || !data.init_point) {
       throw new Error("Respuesta de Mercado Pago incompleta")
     }
+
+    // Asegurarnos de que los IDs de usuario se manejen como strings
+    if (data.collector_id) data.collector_id = String(data.collector_id)
+    if (data.client_id) data.client_id = String(data.client_id)
+    if (data.marketplace_owner) data.marketplace_owner = String(data.marketplace_owner)
 
     return {
       ...data,
@@ -99,6 +105,7 @@ export async function getPaymentStatus(paymentId: string) {
       headers: {
         Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
         "User-Agent": "Tipy/1.0", // Identificar la aplicación
+        Accept: "application/json", // Asegurar que aceptamos JSON
       },
     })
 
@@ -112,6 +119,12 @@ export async function getPaymentStatus(paymentId: string) {
     // Procesar la respuesta
     const data = await response.json()
     console.log("Estado de pago recibido:", JSON.stringify(data, null, 2))
+
+    // Asegurarnos de que los IDs de usuario se manejen como strings
+    if (data.user_id) data.user_id = String(data.user_id)
+    if (data.payer && data.payer.id) data.payer.id = String(data.payer.id)
+    if (data.collector && data.collector.id) data.collector.id = String(data.collector.id)
+
     return data
   } catch (error) {
     console.error("Error getting MercadoPago payment:", error)

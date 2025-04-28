@@ -14,6 +14,7 @@ export async function OPTIONS() {
   })
 }
 
+// Modificar la función POST para manejar IDs de usuario más largos
 export async function POST(request: Request) {
   try {
     // Obtener el cuerpo de la solicitud primero para poder loguearlo
@@ -24,6 +25,10 @@ export async function POST(request: Request) {
     try {
       body = JSON.parse(bodyText)
       console.log("Webhook recibido (parsed):", JSON.stringify(body, null, 2))
+
+      // Convertir IDs de usuario a string si existen
+      if (body.user_id) body.user_id = String(body.user_id)
+      if (body.data && body.data.id) body.data.id = String(body.data.id)
     } catch (e) {
       console.error("Error al parsear el cuerpo de la solicitud:", e)
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
@@ -57,7 +62,7 @@ export async function POST(request: Request) {
 
     // Procesar la notificación real
     if (body.type === "payment" && body.data && body.data.id) {
-      const paymentId = body.data.id
+      const paymentId = String(body.data.id) // Asegurar que sea string
 
       // Obtener detalles del pago desde Mercado Pago
       const paymentDetails = await getPaymentStatus(paymentId)

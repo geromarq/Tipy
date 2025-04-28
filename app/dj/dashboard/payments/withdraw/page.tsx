@@ -41,20 +41,22 @@ export default function WithdrawPage() {
     fetchStats()
   }, [session, router])
 
+  // Modificar la función fetchStats para obtener el balance del DJ
   const fetchStats = async () => {
     try {
       setLoading(true)
 
-      // Get all approved payments
-      const { data: payments, error: paymentsError } = await supabase
-        .from("payments")
-        .select("amount")
-        .eq("dj_id", session.user.id)
-        .eq("status", "approved")
+      // Get DJ profile to get balance
+      const { data: djProfile, error: djError } = await supabase
+        .from("djs")
+        .select("balance")
+        .eq("id", session.user.id)
+        .single()
 
-      if (paymentsError) throw paymentsError
-
-      const total = payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0
+      if (djError) {
+        console.error("Error al obtener perfil de DJ:", djError)
+        throw new Error("No se pudo obtener el balance")
+      }
 
       // Get pending withdrawals
       const { data: withdrawalsData, error: withdrawalsError } = await supabase
@@ -68,7 +70,7 @@ export default function WithdrawPage() {
       const pendingWithdrawal = withdrawalsData?.reduce((sum, withdrawal) => sum + withdrawal.amount, 0) || 0
 
       setStats({
-        total,
+        total: djProfile?.balance || 0,
         pendingWithdrawal,
       })
     } catch (err: any) {
@@ -93,6 +95,7 @@ export default function WithdrawPage() {
     setFormData((prev) => ({ ...prev, bankName: value }))
   }
 
+  // Modificar la función handleSubmit para verificar el balance antes de procesar el retiro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
@@ -116,6 +119,23 @@ export default function WithdrawPage() {
 
       if (availableBalance < MIN_WITHDRAWAL_AMOUNT) {
         throw new Error(`El monto mínimo para retirar es de ${formatCurrency(MIN_WITHDRAWAL_AMOUNT)}`)
+      }
+
+      // Verificar nuevamente el balance actual
+      const { data: djProfile, error: djError } = await supabase
+        .from("djs")
+        .select("balance")
+        .eq("id", session.user.id)
+        .single()
+
+      if (djError) {
+        throw new Error("No se pudo verificar el balance actual")
+      }
+
+      if (djProfile.balance < MIN_WITHDRAWAL_AMOUNT) {
+        throw new Error(
+          `No tienes suficiente balance para retirar. Balance actual: ${formatCurrency(djProfile.balance)}`,
+        )
       }
 
       // Calculate amount after fee (30%)
@@ -145,6 +165,19 @@ export default function WithdrawPage() {
       })
 
       if (bankDetailsError) throw bankDetailsError
+
+      // Update DJ balance
+      const { error: updateBalanceError } = await supabase
+        .from("djs")
+        .update({
+          balance: djProfile.balance - withdrawalAmount,
+        })
+        .eq("id", session.user.id)
+
+      if (updateBalanceError) {
+        console.error("Error al actualizar el balance:", updateBalanceError)
+        // No lanzar error aquí para no interrumpir el flujo, pero registrar el problema
+      }
 
       setSuccess(true)
       toast({

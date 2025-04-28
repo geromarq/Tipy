@@ -21,6 +21,7 @@ import {
   CheckCircle,
   RefreshCcw,
   AlertTriangle,
+  DollarSign,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -76,6 +77,49 @@ export default function SuggestionsPage() {
     fetchSuggestions()
   }, [session, activeTab])
 
+  // Modificar la función getSuggestionContent para mostrar el monto de la propina
+  const getSuggestionContent = (suggestion: any) => {
+    // Obtener el monto de la propina si existe
+    const tipAmount = suggestion.payments?.find((payment: any) => payment.status === "approved")?.amount || 0
+
+    if (suggestion.spotify_link) {
+      return (
+        <div className="flex flex-col space-y-2">
+          <div className="flex items-center">
+            <span className="truncate text-base">{suggestion.spotify_link}</span>
+            <a
+              href={suggestion.spotify_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-2 text-primary hover:text-primary/80"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </div>
+          {tipAmount > 0 && (
+            <div className="text-sm font-medium text-green-600 dark:text-green-400 inline-flex items-center px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30">
+              <DollarSign className="h-3 w-3 mr-1" />
+              Propina: {formatCurrency(tipAmount)}
+            </div>
+          )}
+        </div>
+      )
+    } else {
+      return (
+        <div className="flex flex-col space-y-2">
+          <p className="text-base">{suggestion.message}</p>
+          {tipAmount > 0 && (
+            <div className="text-sm font-medium text-green-600 dark:text-green-400 inline-flex items-center px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30">
+              <DollarSign className="h-3 w-3 mr-1" />
+              Propina: {formatCurrency(tipAmount)}
+            </div>
+          )}
+        </div>
+      )
+    }
+  }
+
+  // Modificar la función fetchSuggestions para verificar sugerencias expiradas
   const fetchSuggestions = async () => {
     try {
       setLoading(true)
@@ -92,6 +136,7 @@ export default function SuggestionsPage() {
         .order("created_at", { ascending: false })
 
       if (activeTab === "pending") {
+        // Incluir sugerencias pendientes y expiradas
         query = query.eq("accepted", false)
       } else if (activeTab === "accepted") {
         query = query.eq("accepted", true)
@@ -109,6 +154,30 @@ export default function SuggestionsPage() {
           (suggestion) =>
             suggestion.payments && suggestion.payments.some((payment: any) => payment.status === "approved"),
         ) || []
+
+      // Verificar si hay sugerencias expiradas y actualizarlas
+      const now = new Date()
+      const expiredSuggestions = paidSuggestions.filter(
+        (suggestion) =>
+          !suggestion.is_expired &&
+          suggestion.expires_at &&
+          new Date(suggestion.expires_at) < now &&
+          !suggestion.accepted,
+      )
+
+      // Actualizar sugerencias expiradas en la base de datos
+      if (expiredSuggestions.length > 0) {
+        const expiredIds = expiredSuggestions.map((s) => s.id)
+
+        await supabase.from("recommendations").update({ is_expired: true }).in("id", expiredIds)
+
+        // Actualizar el estado local
+        paidSuggestions.forEach((suggestion) => {
+          if (expiredIds.includes(suggestion.id)) {
+            suggestion.is_expired = true
+          }
+        })
+      }
 
       setSuggestions(paidSuggestions)
       setShowOlderSuggestions(false)
@@ -329,26 +398,6 @@ export default function SuggestionsPage() {
     }
   }
 
-  const getSuggestionContent = (suggestion: any) => {
-    if (suggestion.spotify_link) {
-      return (
-        <div className="flex items-center">
-          <span className="truncate">{suggestion.spotify_link}</span>
-          <a
-            href={suggestion.spotify_link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-2 text-primary hover:text-primary/80"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </a>
-        </div>
-      )
-    } else {
-      return suggestion.message
-    }
-  }
-
   // Función para extraer el ID de la canción de Spotify de una URL
   const getSpotifyTrackId = (spotifyLink: string) => {
     try {
@@ -377,10 +426,16 @@ export default function SuggestionsPage() {
     return suggestion.payments && suggestion.payments.some((payment: any) => payment.status === "approved")
   }
 
-  // Verificar si una sugerencia está dentro de la ventana de 1 hora desde su creación
+  // Modificar la función isWithinTimeWindow para verificar expiración
   const isWithinTimeWindow = (suggestion: any) => {
     if (!suggestion.created_at) return false
 
+    // Si la sugerencia tiene fecha de expiración, usarla
+    if (suggestion.expires_at) {
+      return new Date() < new Date(suggestion.expires_at)
+    }
+
+    // Si no tiene fecha de expiración, usar el comportamiento anterior (1 hora)
     const creationTime = new Date(suggestion.created_at)
     const oneHourLater = new Date(creationTime)
     oneHourLater.setHours(oneHourLater.getHours() + 1)
@@ -399,8 +454,22 @@ export default function SuggestionsPage() {
     return creationTime < oneDayAgo
   }
 
-  // Calcular el tiempo restante para una sugerencia (en minutos y segundos)
+  // Modificar la función getRemainingTime para usar la fecha de expiración
   const getRemainingTime = (suggestion: any) => {
+    // Si la sugerencia tiene fecha de expiración, usarla
+    if (suggestion.expires_at) {
+      const expirationTime = new Date(suggestion.expires_at)
+      const diffMs = expirationTime.getTime() - now.getTime()
+
+      if (diffMs <= 0) return null
+
+      const minutes = Math.floor(diffMs / 60000)
+      const seconds = Math.floor((diffMs % 60000) / 1000)
+
+      return `${minutes}:${seconds.toString().padStart(2, "0")}`
+    }
+
+    // Si no tiene fecha de expiración, usar el comportamiento anterior (1 hora desde creación)
     if (!suggestion.created_at) return null
 
     const creationTime = new Date(suggestion.created_at)
@@ -579,34 +648,49 @@ export default function SuggestionsPage() {
                   </CardContent>
                   {!suggestion.accepted && (
                     <CardFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleReject(suggestion.id)}
-                        className="w-full sm:w-auto"
-                        disabled={processingRefund === suggestion.id}
-                      >
-                        {processingRefund === suggestion.id ? (
-                          <>
-                            <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
-                            Procesando...
-                          </>
-                        ) : (
-                          <>
-                            <X className="mr-2 h-4 w-4" />
-                            Rechazar
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => handleAccept(suggestion.id)}
-                        className="w-full sm:w-auto"
-                        disabled={processingRefund === suggestion.id}
-                      >
-                        <Check className="mr-2 h-4 w-4" />
-                        Aceptar
-                      </Button>
+                      {suggestion.is_expired ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full sm:w-auto text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700 dark:hover:bg-amber-900/30"
+                          onClick={() => handleReject(suggestion.id)}
+                          disabled={processingRefund === suggestion.id}
+                        >
+                          <Clock className="mr-2 h-4 w-4" />
+                          Expirada
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReject(suggestion.id)}
+                            className="w-full sm:w-auto"
+                            disabled={processingRefund === suggestion.id}
+                          >
+                            {processingRefund === suggestion.id ? (
+                              <>
+                                <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
+                                Procesando...
+                              </>
+                            ) : (
+                              <>
+                                <X className="mr-2 h-4 w-4" />
+                                Rechazar
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleAccept(suggestion.id)}
+                            className="w-full sm:w-auto"
+                            disabled={processingRefund === suggestion.id}
+                          >
+                            <Check className="mr-2 h-4 w-4" />
+                            Aceptar
+                          </Button>
+                        </>
+                      )}
                     </CardFooter>
                   )}
                   {refundStatus.suggestionId === suggestion.id && (
@@ -756,34 +840,49 @@ export default function SuggestionsPage() {
                     </CardContent>
                     {!suggestion.accepted && (
                       <CardFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleReject(suggestion.id)}
-                          className="w-full sm:w-auto"
-                          disabled={processingRefund === suggestion.id}
-                        >
-                          {processingRefund === suggestion.id ? (
-                            <>
-                              <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
-                              Procesando...
-                            </>
-                          ) : (
-                            <>
-                              <X className="mr-2 h-4 w-4" />
-                              Rechazar
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAccept(suggestion.id)}
-                          className="w-full sm:w-auto"
-                          disabled={processingRefund === suggestion.id}
-                        >
-                          <Check className="mr-2 h-4 w-4" />
-                          Aceptar
-                        </Button>
+                        {suggestion.is_expired ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full sm:w-auto text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700 dark:hover:bg-amber-900/30"
+                            onClick={() => handleReject(suggestion.id)}
+                            disabled={processingRefund === suggestion.id}
+                          >
+                            <Clock className="mr-2 h-4 w-4" />
+                            Expirada
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReject(suggestion.id)}
+                              className="w-full sm:w-auto"
+                              disabled={processingRefund === suggestion.id}
+                            >
+                              {processingRefund === suggestion.id ? (
+                                <>
+                                  <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
+                                  Procesando...
+                                </>
+                              ) : (
+                                <>
+                                  <X className="mr-2 h-4 w-4" />
+                                  Rechazar
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAccept(suggestion.id)}
+                              className="w-full sm:w-auto"
+                              disabled={processingRefund === suggestion.id}
+                            >
+                              <Check className="mr-2 h-4 w-4" />
+                              Aceptar
+                            </Button>
+                          </>
+                        )}
                       </CardFooter>
                     )}
                     {refundStatus.suggestionId === suggestion.id && (
@@ -886,34 +985,49 @@ export default function SuggestionsPage() {
                   <CardFooter className="flex flex-col sm:flex-row justify-between gap-2">
                     {!suggestion.accepted ? (
                       <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleReject(suggestion.id)}
-                          className="w-full sm:w-auto"
-                          disabled={processingRefund === suggestion.id}
-                        >
-                          {processingRefund === suggestion.id ? (
-                            <>
-                              <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
-                              Procesando...
-                            </>
-                          ) : (
-                            <>
-                              <X className="mr-2 h-4 w-4" />
-                              Rechazar
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAccept(suggestion.id)}
-                          className="w-full sm:w-auto"
-                          disabled={processingRefund === suggestion.id}
-                        >
-                          <Check className="mr-2 h-4 w-4" />
-                          Aceptar
-                        </Button>
+                        {suggestion.is_expired ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full sm:w-auto text-amber-600 border-amber-600 hover:bg-amber-100 hover:text-amber-700 dark:hover:bg-amber-900/30"
+                            onClick={() => handleReject(suggestion.id)}
+                            disabled={processingRefund === suggestion.id}
+                          >
+                            <Clock className="mr-2 h-4 w-4" />
+                            Expirada
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReject(suggestion.id)}
+                              className="w-full sm:w-auto"
+                              disabled={processingRefund === suggestion.id}
+                            >
+                              {processingRefund === suggestion.id ? (
+                                <>
+                                  <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
+                                  Procesando...
+                                </>
+                              ) : (
+                                <>
+                                  <X className="mr-2 h-4 w-4" />
+                                  Rechazar
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAccept(suggestion.id)}
+                              className="w-full sm:w-auto"
+                              disabled={processingRefund === suggestion.id}
+                            >
+                              <Check className="mr-2 h-4 w-4" />
+                              Aceptar
+                            </Button>
+                          </>
+                        )}
                       </>
                     ) : (
                       <Button

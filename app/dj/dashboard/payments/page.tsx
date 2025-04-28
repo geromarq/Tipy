@@ -25,6 +25,8 @@ export default function PaymentsPage() {
     lastMonth: 0,
     thisWeek: 0,
     pendingWithdrawal: 0,
+    ganancias_totales: 0,
+    balance: 0,
   })
   const [sortOrder, setSortOrder] = useState<"date-desc" | "date-asc" | "amount-desc" | "amount-asc">("date-desc")
 
@@ -72,6 +74,17 @@ export default function PaymentsPage() {
 
       if (!session) {
         throw new Error("No hay sesión activa")
+      }
+
+      // Get DJ profile to get ganancias_totales and balance
+      const { data: djProfile, error: djError } = await supabase
+        .from("djs")
+        .select("ganancias_totales, balance")
+        .eq("id", session.user.id)
+        .single()
+
+      if (djError) {
+        console.error("Error al obtener perfil de DJ:", djError)
       }
 
       // Get all approved payments
@@ -124,6 +137,8 @@ export default function PaymentsPage() {
         lastMonth: lastMonthTotal,
         thisWeek: thisWeekTotal,
         pendingWithdrawal,
+        ganancias_totales: djProfile?.ganancias_totales || 0,
+        balance: djProfile?.balance || 0,
       })
     } catch (err: any) {
       console.error("Error al cargar los pagos:", err)
@@ -224,7 +239,7 @@ export default function PaymentsPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.total - stats.pendingWithdrawal)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.balance)}</div>
             <p className="text-xs text-muted-foreground">
               {stats.pendingWithdrawal > 0 && `${formatCurrency(stats.pendingWithdrawal)} en proceso`}
             </p>
@@ -233,14 +248,20 @@ export default function PaymentsPage() {
             </p>
           </CardContent>
           <CardFooter>
-            <Button
-              className="w-full"
-              disabled={stats.total - stats.pendingWithdrawal < MIN_WITHDRAWAL_AMOUNT}
-              onClick={handleWithdraw}
-            >
+            <Button className="w-full" disabled={stats.balance < MIN_WITHDRAWAL_AMOUNT} onClick={handleWithdraw}>
               Solicitar retiro
             </Button>
           </CardFooter>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ganancias totales</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(stats.ganancias_totales)}</div>
+            <p className="text-xs text-muted-foreground">Total histórico acumulado</p>
+          </CardContent>
         </Card>
       </div>
 
