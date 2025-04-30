@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/utils"
-import { DollarSign, ArrowDown, ArrowUp, Calendar, AlertCircle } from "lucide-react"
+import { DollarSign, ArrowDown, ArrowUp, Calendar, AlertCircle, RefreshCw } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function PaymentsPage() {
@@ -29,6 +29,7 @@ export default function PaymentsPage() {
     balance: 0,
   })
   const [sortOrder, setSortOrder] = useState<"date-desc" | "date-asc" | "amount-desc" | "amount-asc">("date-desc")
+  const [refreshing, setRefreshing] = useState(false)
 
   const MIN_WITHDRAWAL_AMOUNT = 1000 // Monto mínimo para retirar: $1000
 
@@ -85,7 +86,10 @@ export default function PaymentsPage() {
 
       if (djError) {
         console.error("Error al obtener perfil de DJ:", djError)
+        throw djError
       }
+
+      console.log("Perfil de DJ:", djProfile)
 
       // Get all approved payments
       const { data, error: paymentsError } = await supabase
@@ -107,7 +111,6 @@ export default function PaymentsPage() {
       const thisWeek = new Date(now)
       thisWeek.setDate(now.getDate() - now.getDay())
 
-      const total = data?.reduce((sum, payment) => sum + payment.amount, 0) || 0
       const thisMonthPayments = data?.filter(
         (payment) => new Date(payment.created_at) >= thisMonth && new Date(payment.created_at) < nextMonth,
       )
@@ -132,7 +135,7 @@ export default function PaymentsPage() {
       const pendingWithdrawal = withdrawalsData?.reduce((sum, withdrawal) => sum + withdrawal.amount, 0) || 0
 
       setStats({
-        total,
+        total: data?.reduce((sum, payment) => sum + payment.amount, 0) || 0,
         thisMonth: thisMonthTotal,
         lastMonth: lastMonthTotal,
         thisWeek: thisWeekTotal,
@@ -150,6 +153,37 @@ export default function PaymentsPage() {
       })
     } finally {
       setLoading(false)
+      setRefreshing(false)
+    }
+  }
+
+  // Función para recalcular los balances
+  const recalculateBalances = async () => {
+    try {
+      setRefreshing(true)
+
+      // Ejecutar la actualización de balances
+      const { error } = await supabase.rpc("recalculate_dj_balances", {
+        dj_id: session?.user.id,
+      })
+
+      if (error) throw error
+
+      // Recargar los datos
+      await fetchPayments()
+
+      toast({
+        title: "Balances actualizados",
+        description: "Los balances han sido recalculados correctamente",
+      })
+    } catch (err: any) {
+      console.error("Error al recalcular balances:", err)
+      toast({
+        title: "Error",
+        description: err.message || "No se pudieron recalcular los balances",
+        variant: "destructive",
+      })
+      setRefreshing(false)
     }
   }
 
@@ -192,6 +226,19 @@ export default function PaymentsPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Pagos</h2>
+        <Button variant="outline" size="sm" onClick={recalculateBalances} disabled={refreshing}>
+          {refreshing ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Actualizando...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Actualizar balances
+            </>
+          )}
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -201,8 +248,8 @@ export default function PaymentsPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.total)}</div>
-            <p className="text-xs text-muted-foreground">Total acumulado</p>
+            <div className="text-2xl font-bold">{formatCurrency(stats.ganancias_totales)}</div>
+            <p className="text-xs text-muted-foreground">Total histórico acumulado</p>
           </CardContent>
         </Card>
         <Card>
@@ -252,16 +299,6 @@ export default function PaymentsPage() {
               Solicitar retiro
             </Button>
           </CardFooter>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ganancias totales</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.ganancias_totales)}</div>
-            <p className="text-xs text-muted-foreground">Total histórico acumulado</p>
-          </CardContent>
         </Card>
       </div>
 
