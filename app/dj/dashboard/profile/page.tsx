@@ -357,12 +357,18 @@ export default function ProfilePage() {
     try {
       setSaving(true)
 
-      const { error } = await supabase.from("suggestion_config").upsert({
-        dj_id: session.user.id,
-        expiration_time: expirationConfig.expiration_time,
-        auto_reject_expired: expirationConfig.auto_reject_expired,
-        updated_at: new Date().toISOString(),
-      })
+      // Usar upsert en lugar de insert para evitar el error de clave duplicada
+      const { error } = await supabase.from("suggestion_config").upsert(
+        {
+          dj_id: session.user.id,
+          expiration_time: expirationConfig.expiration_time,
+          auto_reject_expired: expirationConfig.auto_reject_expired,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "dj_id", // Especificar la columna de conflicto
+        },
+      )
 
       if (error) throw error
 

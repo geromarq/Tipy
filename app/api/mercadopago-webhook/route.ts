@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       body = JSON.parse(bodyText)
       console.log("Webhook recibido (parsed):", JSON.stringify(body, null, 2))
 
-      // Convertir IDs de usuario a string si existen
+      // Asegurarse de que los IDs se manejen como strings
       if (body.user_id) body.user_id = String(body.user_id)
       if (body.data && body.data.id) body.data.id = String(body.data.id)
     } catch (e) {

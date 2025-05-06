@@ -2,24 +2,17 @@ import { NextResponse } from "next/server"
 
 export async function GET() {
   try {
-    // Verificar que el token de Mercado Pago esté configurado
+    // Verificar que el token esté configurado
     if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
-      return NextResponse.json(
-        {
-          error: "MERCADOPAGO_ACCESS_TOKEN no está configurado",
-          status: "error",
-        },
-        { status: 500 },
-      )
+      return NextResponse.json({ error: "Token no configurado" }, { status: 500 })
     }
 
-    // Verificar que la URL de la aplicación esté configurada
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "No configurado"
-
-    // Realizar una solicitud simple a la API de Mercado Pago para verificar el token
+    // Intentar obtener información de la cuenta para verificar el token
     const response = await fetch("https://api.mercadopago.com/users/me", {
       headers: {
         Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
     })
 
@@ -27,34 +20,27 @@ export async function GET() {
       const errorText = await response.text()
       return NextResponse.json(
         {
-          error: `Error al verificar el token: ${response.status} - ${errorText}`,
-          status: "error",
+          error: "Error al verificar el token",
+          status: response.status,
+          details: errorText,
         },
         { status: 500 },
       )
     }
 
-    const userData = await response.json()
+    const data = await response.json()
 
+    // Devolver información relevante (sin datos sensibles)
     return NextResponse.json({
-      message: "Configuración de Mercado Pago verificada correctamente",
-      status: "success",
-      appUrl,
-      userData: {
-        id: userData.id,
-        nickname: userData.nickname,
-        email: userData.email,
-        site_status: userData.site_status,
-        country_id: userData.country_id,
-      },
+      success: true,
+      user_id: data.id,
+      status: data.status,
+      site_id: data.site_id,
+      has_marketplace: !!data.marketplace,
+      message: "Token válido y funcionando correctamente",
     })
   } catch (error: any) {
-    return NextResponse.json(
-      {
-        error: error.message || "Error al verificar la configuración de Mercado Pago",
-        status: "error",
-      },
-      { status: 500 },
-    )
+    console.error("Error al verificar token de Mercado Pago:", error)
+    return NextResponse.json({ error: error.message || "Error desconocido" }, { status: 500 })
   }
 }

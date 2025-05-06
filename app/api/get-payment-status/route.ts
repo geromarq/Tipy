@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const reference = searchParams.get("reference")
-    const paymentId = searchParams.get("paymentId")
+    let paymentId = searchParams.get("paymentId")
 
     if (!reference && !paymentId) {
       return NextResponse.json({ error: "Se requiere reference o paymentId" }, { status: 400 })
@@ -29,7 +29,8 @@ export async function GET(request: Request) {
 
       // Si el pago tiene un ID de Mercado Pago, usarlo
       if (paymentData.mercadopago_payment_id) {
-        const paymentDetails = await getPaymentStatus(paymentData.mercadopago_payment_id)
+        paymentId = String(paymentData.mercadopago_payment_id) // Asegurar que sea string
+        const paymentDetails = await getPaymentStatus(paymentId)
         return NextResponse.json(paymentDetails)
       }
 
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
 
     // Si tenemos paymentId, obtener el estado directamente de Mercado Pago
     if (paymentId) {
+      paymentId = String(paymentId) // Asegurar que sea string
       const paymentDetails = await getPaymentStatus(paymentId)
       return NextResponse.json(paymentDetails)
     }
