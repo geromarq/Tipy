@@ -127,11 +127,12 @@ export default function PaymentPage() {
         }),
       })
 
-      const data = await response.json()
-
       if (!response.ok) {
-        throw new Error(data.error || "Error creating payment")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error creating payment")
       }
+
+      const data = await response.json()
 
       if (!data.init_point) {
         throw new Error("No se recibió un punto de inicio de pago válido")
@@ -145,8 +146,6 @@ export default function PaymentPage() {
         title: "Pago creado",
         description: "Haz clic en el botón para continuar con el pago",
       })
-
-      // No redirigir automáticamente, dejar que el usuario haga clic en el botón
     } catch (error: any) {
       console.error("Error processing payment:", error)
       setError(error.message || "No se pudo procesar el pago")
@@ -155,6 +154,7 @@ export default function PaymentPage() {
         description: error.message || "No se pudo procesar el pago",
         variant: "destructive",
       })
+    } finally {
       setProcessing(false)
     }
   }

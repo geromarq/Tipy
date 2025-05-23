@@ -1,5 +1,11 @@
-// Implementación mejorada para Mercado Pago con manejo de errores y depuración
+/**
+ * Implementación limpia de la integración con Mercado Pago
+ * Esta versión elimina código antiguo y se enfoca en una implementación robusta
+ */
 
+/**
+ * Crea una preferencia de pago en Mercado Pago
+ */
 export async function createPaymentPreference(
   title: string,
   price: number,
@@ -34,11 +40,9 @@ export async function createPaymentPreference(
       auto_return: "approved",
       external_reference: externalReference,
       statement_descriptor: "Tipy App",
-      // Agregar notificación webhook para mayor seguridad
       notification_url: process.env.NEXT_PUBLIC_APP_URL
         ? `${process.env.NEXT_PUBLIC_APP_URL}/api/mercadopago-webhook`
         : undefined,
-      // Configuración específica para Uruguay
       payment_methods: {
         excluded_payment_types: [
           { id: "atm" }, // Excluir pagos en efectivo que no aplican en Uruguay
@@ -47,52 +51,33 @@ export async function createPaymentPreference(
       },
     }
 
-    console.log("Enviando datos a Mercado Pago:", JSON.stringify(preferenceData, null, 2))
-
-    // Realizar la solicitud a la API de Mercado Pago con manejo de errores mejorado
-    let response
-    try {
-      response = await fetch("https://api.mercadopago.com/checkout/preferences", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
-          "X-Idempotency-Key": externalReference, // Prevenir duplicados
-          "User-Agent": "Tipy/1.0", // Identificar la aplicación
-          Accept: "application/json", // Asegurar que aceptamos JSON
-        },
-        body: JSON.stringify(preferenceData),
-      })
-    } catch (fetchError: any) {
-      console.error("Error de red al contactar Mercado Pago:", fetchError)
-      throw new Error(`Error de red: ${fetchError.message}`)
-    }
+    // Realizar la solicitud a la API de Mercado Pago
+    const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+        "X-Idempotency-Key": externalReference,
+        "User-Agent": "Tipy/1.0",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(preferenceData),
+    })
 
     // Manejar errores de la API
     if (!response.ok) {
-      let errorText
+      let errorText = ""
       try {
         const errorJson = await response.json()
         errorText = JSON.stringify(errorJson)
-        console.error("Error de Mercado Pago (JSON):", errorJson)
       } catch (e) {
         errorText = await response.text()
-        console.error("Error de Mercado Pago (texto):", errorText)
       }
-
       throw new Error(`MercadoPago API error: ${response.status} - ${errorText}`)
     }
 
     // Procesar la respuesta
-    let data
-    try {
-      data = await response.json()
-    } catch (jsonError) {
-      console.error("Error al parsear respuesta JSON:", jsonError)
-      throw new Error("No se pudo parsear la respuesta de Mercado Pago")
-    }
-
-    console.log("Respuesta de Mercado Pago:", JSON.stringify(data, null, 2))
+    const data = await response.json()
 
     // Verificar que la respuesta contenga los campos necesarios
     if (!data.id || !data.init_point) {
@@ -106,7 +91,7 @@ export async function createPaymentPreference(
 
     return {
       ...data,
-      external_reference: externalReference, // Asegurar que se devuelva la referencia externa
+      external_reference: externalReference,
     }
   } catch (error) {
     console.error("Error creating MercadoPago preference:", error)
@@ -114,6 +99,9 @@ export async function createPaymentPreference(
   }
 }
 
+/**
+ * Obtiene el estado de un pago en Mercado Pago
+ */
 export async function getPaymentStatus(paymentId: string) {
   try {
     // Verificar que el token de acceso esté disponible
@@ -122,45 +110,28 @@ export async function getPaymentStatus(paymentId: string) {
     }
 
     // Realizar la solicitud a la API de Mercado Pago
-    let response
-    try {
-      response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-        headers: {
-          Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
-          "User-Agent": "Tipy/1.0", // Identificar la aplicación
-          Accept: "application/json", // Asegurar que aceptamos JSON
-        },
-      })
-    } catch (fetchError: any) {
-      console.error("Error de red al obtener estado de pago:", fetchError)
-      throw new Error(`Error de red: ${fetchError.message}`)
-    }
+    const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+        "User-Agent": "Tipy/1.0",
+        Accept: "application/json",
+      },
+    })
 
     // Manejar errores de la API
     if (!response.ok) {
-      let errorText
+      let errorText = ""
       try {
         const errorJson = await response.json()
         errorText = JSON.stringify(errorJson)
-        console.error("Error al obtener estado de pago (JSON):", errorJson)
       } catch (e) {
         errorText = await response.text()
-        console.error("Error al obtener estado de pago (texto):", errorText)
       }
-
       throw new Error(`Error fetching payment: ${response.status} - ${errorText}`)
     }
 
     // Procesar la respuesta
-    let data
-    try {
-      data = await response.json()
-    } catch (jsonError) {
-      console.error("Error al parsear respuesta JSON:", jsonError)
-      throw new Error("No se pudo parsear la respuesta de estado de pago")
-    }
-
-    console.log("Estado de pago recibido:", JSON.stringify(data, null, 2))
+    const data = await response.json()
 
     // Asegurarnos de que los IDs de usuario se manejen como strings
     if (data.user_id) data.user_id = String(data.user_id)
@@ -174,7 +145,9 @@ export async function getPaymentStatus(paymentId: string) {
   }
 }
 
-// Función corregida para procesar reembolsos con Checkout Pro
+/**
+ * Procesa un reembolso en Mercado Pago
+ */
 export async function refundPayment(paymentId: string, amount?: number) {
   try {
     // Verificar que el token de acceso esté disponible
@@ -188,52 +161,33 @@ export async function refundPayment(paymentId: string, amount?: number) {
     // Preparar datos para el reembolso
     const refundData = amount ? { amount } : {}
 
-    console.log(`Solicitando reembolso para pago ${paymentId}${amount ? ` por ${amount}` : " (total)"}`)
-
     // Realizar la solicitud a la API de Mercado Pago
-    let response
-    try {
-      response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}/refunds`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
-          "X-Idempotency-Key": idempotencyKey, // Prevenir duplicados
-          "User-Agent": "Tipy/1.0", // Identificar la aplicación
-          Accept: "application/json", // Asegurar que aceptamos JSON
-        },
-        body: JSON.stringify(refundData),
-      })
-    } catch (fetchError: any) {
-      console.error("Error de red al procesar reembolso:", fetchError)
-      throw new Error(`Error de red: ${fetchError.message}`)
-    }
+    const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}/refunds`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+        "X-Idempotency-Key": idempotencyKey,
+        "User-Agent": "Tipy/1.0",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(refundData),
+    })
 
     // Manejar errores de la API
     if (!response.ok) {
-      let errorText
+      let errorText = ""
       try {
         const errorJson = await response.json()
         errorText = JSON.stringify(errorJson)
-        console.error("Error al procesar reembolso (JSON):", errorJson)
       } catch (e) {
         errorText = await response.text()
-        console.error("Error al procesar reembolso (texto):", errorText)
       }
-
       throw new Error(`Error processing refund: ${response.status} - ${errorText}`)
     }
 
     // Procesar la respuesta
-    let data
-    try {
-      data = await response.json()
-    } catch (jsonError) {
-      console.error("Error al parsear respuesta JSON:", jsonError)
-      throw new Error("No se pudo parsear la respuesta del reembolso")
-    }
-
-    console.log("Reembolso procesado:", JSON.stringify(data, null, 2))
+    const data = await response.json()
 
     // Asegurarnos de que los IDs de usuario se manejen como strings
     if (data.id) data.id = String(data.id)
