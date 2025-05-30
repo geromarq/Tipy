@@ -15,6 +15,9 @@ export async function createPaymentPreference(
       throw new Error("MERCADOPAGO_ACCESS_TOKEN no está configurado")
     }
 
+    // URL base para webhooks - usar siempre el dominio de producción
+    const baseUrl = "https://www.tipy.uy"
+
     // Crear datos de preferencia con formato correcto para Uruguay
     const preferenceData = {
       items: [
@@ -34,10 +37,8 @@ export async function createPaymentPreference(
       auto_return: "approved",
       external_reference: externalReference,
       statement_descriptor: "Tipy App",
-      // Agregar notificación webhook para mayor seguridad
-      notification_url: process.env.NEXT_PUBLIC_APP_URL
-        ? `${process.env.NEXT_PUBLIC_APP_URL}/api/mercadopago-webhook`
-        : undefined,
+      // Usar siempre la URL de producción para el webhook
+      notification_url: `${baseUrl}/api/mercadopago-webhook`,
       // Configuración específica para Uruguay
       payment_methods: {
         excluded_payment_types: [
@@ -57,6 +58,7 @@ export async function createPaymentPreference(
         Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
         "X-Idempotency-Key": externalReference, // Prevenir duplicados
         "User-Agent": "Tipy/1.0", // Identificar la aplicación
+        Accept: "application/json",
       },
       body: JSON.stringify(preferenceData),
     })
@@ -76,6 +78,11 @@ export async function createPaymentPreference(
     if (!data.id || !data.init_point) {
       throw new Error("Respuesta de Mercado Pago incompleta")
     }
+
+    // Asegurarnos de que los IDs de usuario se manejen como strings
+    if (data.collector_id) data.collector_id = String(data.collector_id)
+    if (data.client_id) data.client_id = String(data.client_id)
+    if (data.marketplace_owner) data.marketplace_owner = String(data.marketplace_owner)
 
     return {
       ...data,
@@ -99,6 +106,7 @@ export async function getPaymentStatus(paymentId: string) {
       headers: {
         Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
         "User-Agent": "Tipy/1.0", // Identificar la aplicación
+        Accept: "application/json",
       },
     })
 
@@ -112,6 +120,12 @@ export async function getPaymentStatus(paymentId: string) {
     // Procesar la respuesta
     const data = await response.json()
     console.log("Estado de pago recibido:", JSON.stringify(data, null, 2))
+
+    // Asegurarnos de que los IDs de usuario se manejen como strings
+    if (data.user_id) data.user_id = String(data.user_id)
+    if (data.payer && data.payer.id) data.payer.id = String(data.payer.id)
+    if (data.collector && data.collector.id) data.collector.id = String(data.collector.id)
+
     return data
   } catch (error) {
     console.error("Error getting MercadoPago payment:", error)
@@ -143,6 +157,7 @@ export async function refundPayment(paymentId: string, amount?: number) {
         Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
         "X-Idempotency-Key": idempotencyKey, // Prevenir duplicados
         "User-Agent": "Tipy/1.0", // Identificar la aplicación
+        Accept: "application/json",
       },
       body: JSON.stringify(refundData),
     })
@@ -157,6 +172,11 @@ export async function refundPayment(paymentId: string, amount?: number) {
     // Procesar la respuesta
     const data = await response.json()
     console.log("Reembolso procesado:", JSON.stringify(data, null, 2))
+
+    // Asegurarnos de que los IDs de usuario se manejen como strings
+    if (data.id) data.id = String(data.id)
+    if (data.payment_id) data.payment_id = String(data.payment_id)
+
     return data
   } catch (error) {
     console.error("Error refunding payment:", error)

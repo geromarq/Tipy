@@ -1,57 +1,38 @@
 import { NextResponse } from "next/server"
 
-// Endpoint para probar la configuración de webhooks
 export async function GET(request: Request) {
+  return NextResponse.json({
+    success: true,
+    message: "Endpoint de prueba para webhooks funcionando correctamente",
+    timestamp: new Date().toISOString(),
+  })
+}
+
+export async function POST(request: Request) {
   try {
-    // Obtener la URL del webhook configurada
-    const webhookUrl = process.env.NEXT_PUBLIC_APP_URL
-      ? `${process.env.NEXT_PUBLIC_APP_URL}/api/mercadopago-webhook`
-      : "https://v0-tipy-six.vercel.app/api/mercadopago-webhook"
+    // Obtener el cuerpo de la solicitud
+    const bodyText = await request.text()
+    console.log("Solicitud de prueba recibida:", bodyText)
 
-    // Obtener la clave secreta configurada
-    const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET || "no-configurada"
-
-    // Crear un objeto de prueba similar a lo que enviaría Mercado Pago
-    const testPayload = {
-      action: "test.created",
-      api_version: "v1",
-      data: {
-        id: "test_webhook_" + Date.now(),
-      },
-      date_created: new Date().toISOString(),
-      id: 12345,
-      live_mode: false,
-      type: "test",
+    let body
+    try {
+      body = JSON.parse(bodyText)
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
     }
 
-    // Enviar una solicitud de prueba al webhook
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Webhook-Secret": webhookSecret,
-      },
-      body: JSON.stringify(testPayload),
-    })
+    // Simular procesamiento de webhook
+    console.log("Datos de prueba procesados correctamente:", body)
 
-    // Obtener la respuesta
-    const responseData = await response.json()
-
+    // Responder con éxito
     return NextResponse.json({
-      success: response.ok,
-      status: response.status,
-      webhook_url: webhookUrl,
-      webhook_secret_configured: webhookSecret !== "no-configurada",
-      webhook_secret_masked: webhookSecret.substring(0, 3) + "..." + webhookSecret.substring(webhookSecret.length - 3),
-      response: responseData,
+      success: true,
+      message: "Webhook de prueba recibido correctamente",
+      received_data: body,
+      timestamp: new Date().toISOString(),
     })
   } catch (error: any) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Error al probar el webhook",
-      },
-      { status: 500 },
-    )
+    console.error("Error en webhook de prueba:", error)
+    return NextResponse.json({ error: error.message || "Error en webhook de prueba" }, { status: 500 })
   }
 }

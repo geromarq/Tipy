@@ -1,46 +1,56 @@
-import { type ClassValue, clsx } from "clsx"
+import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { customAlphabet } from "nanoid"
-import { v4 as uuidv4 } from "uuid"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// Generate a short, readable ID for QR codes
-export function generateQrCode() {
-  // Usar solo letras mayúsculas y números para mayor legibilidad
-  const nanoid = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 8)
-  return nanoid()
-}
-
-// Generate a UUID compatible with Supabase
-export function generateUUID() {
-  return uuidv4()
-}
-
-// Format currency in UYU (Uruguayan Peso)
-export function formatCurrency(amount: number) {
+// Función para formatear moneda
+export function formatCurrency(amount: number, currency = "UYU"): string {
   return new Intl.NumberFormat("es-UY", {
     style: "currency",
-    currency: "UYU",
+    currency: currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(amount)
 }
 
-// Validate Spotify URL
-export function isValidSpotifyUrl(url: string) {
-  return url.startsWith("https://open.spotify.com/") || url.startsWith("spotify:") || url.includes("spotify.com")
+// Función para generar UUID
+export function generateUUID(): string {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c == "x" ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
 }
 
-// Format phone number
-export function formatPhoneNumber(phoneNumber: string) {
-  // Remove non-numeric characters
-  const cleaned = phoneNumber.replace(/\D/g, "")
+// Función para generar código QR
+export function generateQrCode(text: string): string {
+  // Retorna una URL para generar QR usando una API pública
+  const encodedText = encodeURIComponent(text)
+  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedText}`
+}
 
-  // Format as (XXX) XXX-XXXX if it's a 10-digit number
-  if (cleaned.length === 10) {
-    return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
+// Función para formatear número de teléfono
+export function formatPhoneNumber(phone: string): string {
+  // Remover todos los caracteres que no sean números
+  const cleaned = phone.replace(/\D/g, "")
+
+  // Si el número tiene código de país (+598), formatearlo apropiadamente
+  if (cleaned.startsWith("598") && cleaned.length === 11) {
+    return `+598 ${cleaned.slice(3, 5)} ${cleaned.slice(5, 8)} ${cleaned.slice(8)}`
   }
 
-  return phoneNumber
+  // Si es un número local uruguayo (8 dígitos)
+  if (cleaned.length === 8) {
+    return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 5)} ${cleaned.slice(5)}`
+  }
+
+  // Si es un número con 9 dígitos (con 0 al inicio)
+  if (cleaned.length === 9 && cleaned.startsWith("0")) {
+    return `0${cleaned.slice(1, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6)}`
+  }
+
+  // Retornar el número original si no coincide con ningún formato conocido
+  return phone
 }

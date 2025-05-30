@@ -24,6 +24,10 @@ export async function POST(request: Request) {
     try {
       body = JSON.parse(bodyText)
       console.log("Webhook recibido (parsed):", JSON.stringify(body, null, 2))
+
+      // Asegurarnos de que los IDs se manejen como strings
+      if (body.user_id) body.user_id = String(body.user_id)
+      if (body.data && body.data.id) body.data.id = String(body.data.id)
     } catch (e) {
       console.error("Error al parsear el cuerpo de la solicitud:", e)
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
@@ -57,7 +61,7 @@ export async function POST(request: Request) {
 
     // Procesar la notificación real
     if (body.type === "payment" && body.data && body.data.id) {
-      const paymentId = body.data.id
+      const paymentId = String(body.data.id)
 
       // Obtener detalles del pago desde Mercado Pago
       const paymentDetails = await getPaymentStatus(paymentId)
@@ -77,27 +81,18 @@ export async function POST(request: Request) {
 
       // Crear la tabla si no existe
       try {
-        const { error: tableError } = await supabase.rpc("create_mercadopago_webhooks_if_not_exists")
-        if (tableError) {
-          console.error("Error al verificar/crear tabla de webhooks:", tableError)
-        }
-      } catch (e) {
-        console.error("Error al llamar al procedimiento:", e)
-        // Intentar crear la tabla directamente si el RPC falla
-        try {
-          await supabase.query(`
-            CREATE TABLE IF NOT EXISTS public.mercadopago_webhooks (
-              id SERIAL PRIMARY KEY,
-              payment_id TEXT NOT NULL,
-              external_reference TEXT NOT NULL,
-              status TEXT NOT NULL,
-              webhook_data JSONB NOT NULL,
-              created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
-          `)
-        } catch (tableError) {
-          console.error("Error al crear tabla directamente:", tableError)
-        }
+        await supabase.query(`
+          CREATE TABLE IF NOT EXISTS public.mercadopago_webhooks (
+            id SERIAL PRIMARY KEY,
+            payment_id TEXT NOT NULL,
+            external_reference TEXT NOT NULL,
+            status TEXT NOT NULL,
+            webhook_data JSONB NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          );
+        `)
+      } catch (tableError) {
+        console.error("Error al crear tabla directamente:", tableError)
       }
 
       // Guardar el webhook
