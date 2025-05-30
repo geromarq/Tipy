@@ -9,8 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
 
 export default function ProfilePage() {
   const { supabase, session } = useSupabase()
@@ -24,12 +22,6 @@ export default function ProfilePage() {
     minTipAmount: "",
     newPassword: "",
     confirmPassword: "",
-  })
-
-  // Agregar al estado
-  const [expirationConfig, setExpirationConfig] = useState({
-    expiration_time: 3600, // 1 hora por defecto
-    auto_reject_expired: true,
   })
 
   const MIN_TIP_AMOUNT = 10 // Mínimo de 10 pesos
@@ -158,33 +150,6 @@ export default function ProfilePage() {
           username: newProfile.username || "",
           minTipAmount: newProfile.min_tip_amount?.toString() || MIN_TIP_AMOUNT.toString(),
         })
-
-        // Cargar configuración de expiración
-        const { data: configData, error: configError } = await supabase
-          .from("suggestion_config")
-          .select("*")
-          .eq("dj_id", session.user.id)
-          .maybeSingle()
-
-        if (configError) {
-          console.error("Error al obtener configuración de expiración:", configError)
-        } else if (configData) {
-          setExpirationConfig({
-            expiration_time: configData.expiration_time,
-            auto_reject_expired: configData.auto_reject_expired,
-          })
-        } else {
-          // Si no existe configuración, crear una por defecto
-          const { error: createConfigError } = await supabase.from("suggestion_config").insert({
-            dj_id: session.user.id,
-            expiration_time: 3600, // 1 hora por defecto
-            auto_reject_expired: true,
-          })
-
-          if (createConfigError) {
-            console.error("Error al crear configuración de expiración:", createConfigError)
-          }
-        }
       } catch (err) {
         console.error("Error al cargar el perfil:", err)
       } finally {
@@ -342,52 +307,6 @@ export default function ProfilePage() {
     }
   }
 
-  // Agregar función para manejar cambios en la configuración
-  const handleExpirationChange = (value: string) => {
-    const time = Number.parseInt(value)
-    setExpirationConfig((prev) => ({ ...prev, expiration_time: time }))
-  }
-
-  const handleAutoRejectChange = (value: boolean) => {
-    setExpirationConfig((prev) => ({ ...prev, auto_reject_expired: value }))
-  }
-
-  // Agregar función para guardar la configuración
-  const saveExpirationConfig = async () => {
-    try {
-      setSaving(true)
-
-      // Usar upsert en lugar de insert para evitar el error de clave duplicada
-      const { error } = await supabase.from("suggestion_config").upsert(
-        {
-          dj_id: session.user.id,
-          expiration_time: expirationConfig.expiration_time,
-          auto_reject_expired: expirationConfig.auto_reject_expired,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "dj_id", // Especificar la columna de conflicto
-        },
-      )
-
-      if (error) throw error
-
-      toast({
-        title: "Configuración guardada",
-        description: "La configuración de expiración ha sido actualizada",
-      })
-    } catch (err: any) {
-      console.error("Error al guardar configuración:", err)
-      toast({
-        title: "Error",
-        description: err.message || "No se pudo guardar la configuración",
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
   if (loading) {
     return (
       <div className="flex-1 p-8 pt-6 flex items-center justify-center">
@@ -512,60 +431,6 @@ export default function ProfilePage() {
             <CardFooter>
               <Button type="submit" className="w-full" disabled={saving}>
                 {saving ? "Guardando..." : "Cambiar contraseña"}
-              </Button>
-            </CardFooter>
-          </form>
-        </Card>
-
-        <Card>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              saveExpirationConfig()
-            }}
-          >
-            <CardHeader>
-              <CardTitle>Configuración de sugerencias</CardTitle>
-              <CardDescription>Configura cómo se manejan las sugerencias</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="expirationTime">Tiempo de expiración de sugerencias</Label>
-                <Select value={expirationConfig.expiration_time.toString()} onValueChange={handleExpirationChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona el tiempo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="600">10 minutos</SelectItem>
-                    <SelectItem value="900">15 minutos</SelectItem>
-                    <SelectItem value="1800">30 minutos</SelectItem>
-                    <SelectItem value="2700">45 minutos</SelectItem>
-                    <SelectItem value="3600">1 hora</SelectItem>
-                    <SelectItem value="7200">2 horas</SelectItem>
-                    <SelectItem value="10800">3 horas</SelectItem>
-                    <SelectItem value="14400">4 horas</SelectItem>
-                    <SelectItem value="18000">5 horas</SelectItem>
-                    <SelectItem value="21600">6 horas</SelectItem>
-                    <SelectItem value="0">Nunca</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Las sugerencias no aceptadas expirarán después de este tiempo
-                </p>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="autoReject"
-                  checked={expirationConfig.auto_reject_expired}
-                  onCheckedChange={handleAutoRejectChange}
-                />
-                <Label htmlFor="autoReject">Rechazar automáticamente sugerencias expiradas</Label>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" className="w-full" disabled={saving}>
-                {saving ? "Guardando..." : "Guardar configuración"}
               </Button>
             </CardFooter>
           </form>

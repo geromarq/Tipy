@@ -12,9 +12,7 @@ export interface Database {
           min_tip_amount: number
           created_at: string
           updated_at: string | null
-          password_hash: string
-          ganancias_totales: number // Nuevo campo
-          balance: number // Nuevo campo
+          password_hash: string // Añadido el campo password_hash
         }
         Insert: {
           id: string
@@ -24,9 +22,7 @@ export interface Database {
           min_tip_amount?: number
           created_at?: string
           updated_at?: string | null
-          password_hash: string
-          ganancias_totales?: number // Nuevo campo opcional
-          balance?: number // Nuevo campo opcional
+          password_hash: string // Añadido el campo password_hash
         }
         Update: {
           id?: string
@@ -36,9 +32,7 @@ export interface Database {
           min_tip_amount?: number
           created_at?: string
           updated_at?: string | null
-          password_hash?: string
-          ganancias_totales?: number // Nuevo campo opcional
-          balance?: number // Nuevo campo opcional
+          password_hash?: string // Añadido el campo password_hash
         }
       }
       qr_codes: {
@@ -77,8 +71,6 @@ export interface Database {
           is_priority: boolean
           accepted: boolean
           created_at: string
-          expires_at: string | null // Nuevo campo
-          is_expired: boolean // Nuevo campo
         }
         Insert: {
           id?: string
@@ -89,8 +81,6 @@ export interface Database {
           is_priority?: boolean
           accepted?: boolean
           created_at?: string
-          expires_at?: string | null // Nuevo campo opcional
-          is_expired?: boolean // Nuevo campo opcional
         }
         Update: {
           id?: string
@@ -101,8 +91,6 @@ export interface Database {
           is_priority?: boolean
           accepted?: boolean
           created_at?: string
-          expires_at?: string | null // Nuevo campo opcional
-          is_expired?: boolean // Nuevo campo opcional
         }
       }
       payments: {
@@ -114,7 +102,6 @@ export interface Database {
           mercadopago_id: string
           status: string
           created_at: string
-          mercadopago_payment_id: string | null // Campo para almacenar el ID real de Mercado Pago
         }
         Insert: {
           id?: string
@@ -124,7 +111,6 @@ export interface Database {
           mercadopago_id: string
           status: string
           created_at?: string
-          mercadopago_payment_id?: string | null
         }
         Update: {
           id?: string
@@ -134,7 +120,6 @@ export interface Database {
           mercadopago_id?: string
           status?: string
           created_at?: string
-          mercadopago_payment_id?: string | null
         }
       }
       clients: {
@@ -206,58 +191,6 @@ export interface Database {
           dj_id?: string
           bank_name?: string
           account_number?: string
-          created_at?: string
-        }
-      }
-      suggestion_config: {
-        Row: {
-          id: string
-          dj_id: string
-          expiration_time: number
-          auto_reject_expired: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          dj_id: string
-          expiration_time?: number
-          auto_reject_expired?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          dj_id?: string
-          expiration_time?: number
-          auto_reject_expired?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      mercadopago_webhooks: {
-        Row: {
-          id: number
-          payment_id: string
-          external_reference: string
-          status: string
-          webhook_data: Json
-          created_at: string
-        }
-        Insert: {
-          id?: number
-          payment_id: string
-          external_reference: string
-          status: string
-          webhook_data: Json
-          created_at?: string
-        }
-        Update: {
-          id?: number
-          payment_id?: string
-          external_reference?: string
-          status?: string
-          webhook_data?: Json
           created_at?: string
         }
       }

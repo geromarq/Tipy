@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/utils"
-import { AlertCircle, ExternalLink, ArrowLeft, Info } from "lucide-react"
+import { AlertCircle, ExternalLink, ArrowLeft } from "lucide-react"
 
 export default function PaymentPage() {
   const params = useParams()
@@ -28,7 +28,6 @@ export default function PaymentPage() {
   const [tipAmount, setTipAmount] = useState<number | "">("")
   const [appUrl, setAppUrl] = useState("")
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null)
-  const [storageAccessGranted, setStorageAccessGranted] = useState(false)
 
   const recommendationId = searchParams.get("recommendation")
   const MIN_TIP_AMOUNT = 10 // Mínimo de 10 pesos
@@ -81,31 +80,6 @@ export default function PaymentPage() {
     }
   }
 
-  // Función para solicitar acceso al almacenamiento de terceros
-  const requestStorageAccess = async () => {
-    try {
-      // Verificar si el navegador soporta Storage Access API
-      if ("requestStorageAccess" in document) {
-        await document.requestStorageAccess()
-        setStorageAccessGranted(true)
-        console.log("Storage access granted")
-      }
-
-      // Intentar también con requestStorageAccessFor si está disponible
-      if ("requestStorageAccessFor" in document) {
-        try {
-          await (document as any).requestStorageAccessFor("https://www.mercadopago.com")
-          console.log("Storage access for MercadoPago granted")
-        } catch (e) {
-          console.log("requestStorageAccessFor not available or denied:", e)
-        }
-      }
-    } catch (error) {
-      console.log("Storage access denied or not supported:", error)
-      // No es crítico si falla, continuamos con el proceso normal
-    }
-  }
-
   const handleTipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     if (value === "") {
@@ -123,9 +97,6 @@ export default function PaymentPage() {
     e.preventDefault()
     setError(null)
     setPaymentUrl(null)
-
-    // Solicitar acceso al almacenamiento antes de proceder
-    await requestStorageAccess()
 
     // Usar el mayor entre 10 pesos y el mínimo del DJ
     const minAmount = Math.max(MIN_TIP_AMOUNT, djDetails.min_tip_amount)
@@ -156,12 +127,11 @@ export default function PaymentPage() {
         }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Error creating payment")
-      }
-
       const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Error creating payment")
+      }
 
       if (!data.init_point) {
         throw new Error("No se recibió un punto de inicio de pago válido")
@@ -175,6 +145,8 @@ export default function PaymentPage() {
         title: "Pago creado",
         description: "Haz clic en el botón para continuar con el pago",
       })
+
+      // No redirigir automáticamente, dejar que el usuario haga clic en el botón
     } catch (error: any) {
       console.error("Error processing payment:", error)
       setError(error.message || "No se pudo procesar el pago")
@@ -183,29 +155,36 @@ export default function PaymentPage() {
         description: error.message || "No se pudo procesar el pago",
         variant: "destructive",
       })
-    } finally {
       setProcessing(false)
     }
   }
 
-  // Función mejorada para manejar el clic en el botón de pago
-  const handlePaymentClick = async () => {
+  // Función para manejar el clic en el botón de pago
+  const handlePaymentClick = () => {
     if (!paymentUrl) return
 
-    // Solicitar acceso al almacenamiento antes de abrir el pago
-    await requestStorageAccess()
+    // Intentar abrir en una nueva ventana
+    const paymentWindow = window.open(paymentUrl, "_blank")
 
-    // Mostrar información sobre el proceso de pago
-    toast({
-      title: "Iniciando pago",
-      description: "Serás redirigido a Mercado Pago para completar el pago",
-    })
+    // Verificar si la ventana se abrió correctamente
+    if (!paymentWindow || paymentWindow.closed || typeof paymentWindow.closed === "undefined") {
+      // Si la ventana no se abrió, intentar con redirección normal
+      toast({
+        title: "Información",
+        description: "Redirigiendo a Mercado Pago...",
+      })
 
-    // Usar redirección directa en lugar de popup para evitar problemas de cookies
-    // Esto es más confiable que abrir en una nueva ventana
-    setTimeout(() => {
-      window.location.href = paymentUrl
-    }, 1000)
+      // Esperar un momento antes de redirigir
+      setTimeout(() => {
+        window.location.href = paymentUrl
+      }, 1000)
+    } else {
+      // Si la ventana se abrió correctamente, mostrar mensaje
+      toast({
+        title: "Pago iniciado",
+        description: "Se ha abierto una nueva ventana para completar el pago",
+      })
+    }
   }
 
   // Función para volver a la página anterior
@@ -337,17 +316,10 @@ export default function PaymentPage() {
                   </div>
                 </div>
 
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-                  <div className="flex items-start gap-2">
-                    <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-blue-800 dark:text-blue-300">
-                      <p className="font-medium mb-1">Información importante:</p>
-                      <p>
-                        Serás redirigido a Mercado Pago para completar el pago de forma segura. Si experimentas
-                        problemas, asegúrate de que las cookies estén habilitadas en tu navegador.
-                      </p>
-                    </div>
-                  </div>
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-md">
+                  <p className="text-sm text-green-800 dark:text-green-300">
+                    Tu pago ha sido creado. Haz clic en el botón de abajo para continuar con el pago en Mercado Pago.
+                  </p>
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col gap-2">
