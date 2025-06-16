@@ -67,20 +67,50 @@ export default function QrPage() {
 
       setCreating(true)
 
-      // Generar un código único
-      const code = generateQrCode()
+      // Intentar crear un código único con reintentos
+      let attempts = 0
+      const maxAttempts = 5
+      let code = ""
+      let success = false
 
-      // Crear el código QR en la base de datos
-      const { data, error: createError } = await supabase
-        .from("qr_codes")
-        .insert({
-          dj_id: session.user.id,
-          code: code,
-          active: true,
-        })
-        .select()
+      while (attempts < maxAttempts && !success) {
+        // Generar un código único
+        code = generateQrCode()
+        attempts++
 
-      if (createError) throw createError
+        try {
+          // Intentar crear el código QR en la base de datos
+          const { data, error: createError } = await supabase
+            .from("qr_codes")
+            .insert({
+              dj_id: session.user.id,
+              code: code,
+              active: true,
+            })
+            .select()
+
+          if (createError) {
+            // Si es un error de duplicado, intentar de nuevo
+            if (createError.code === "23505" || createError.message.includes("duplicate key")) {
+              console.log(`Código duplicado detectado (intento ${attempts}), generando nuevo código...`)
+              continue
+            } else {
+              throw createError
+            }
+          }
+
+          success = true
+        } catch (err) {
+          if (attempts >= maxAttempts) {
+            throw err
+          }
+          console.log(`Error en intento ${attempts}, reintentando...`)
+        }
+      }
+
+      if (!success) {
+        throw new Error("No se pudo generar un código único después de varios intentos")
+      }
 
       toast({
         title: "Código QR creado",

@@ -24,11 +24,15 @@ export function generateUUID(): string {
   })
 }
 
-// Función para generar código QR
-export function generateQrCode(text: string): string {
-  // Retorna una URL para generar QR usando una API pública
-  const encodedText = encodeURIComponent(text)
-  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedText}`
+// Función para generar código QR único
+export function generateQrCode(): string {
+  // Generar un código único usando timestamp y caracteres aleatorios
+  const timestamp = Date.now().toString(36) // Convertir timestamp a base36
+  const randomPart = Math.random().toString(36).substring(2, 8) // 6 caracteres aleatorios
+  const extraRandom = Math.random().toString(36).substring(2, 4) // 2 caracteres extra
+
+  // Combinar para crear un código único de aproximadamente 12-14 caracteres
+  return `${timestamp}${randomPart}${extraRandom}`.toUpperCase()
 }
 
 // Función para formatear número de teléfono
